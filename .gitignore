@@ -55,3 +55,8 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+BUILD.md
+CLAUDE.md
+TEST.md
+tests/
+token_cache.json

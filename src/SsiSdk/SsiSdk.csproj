@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>SsiSdk</RootNamespace>
+    <AssemblyName>SsiSdk</AssemblyName>
+    <Version>3.0.5</Version>
+    <Authors>SSI Securities</Authors>
+    <Description>SSI FastConnect SDK for .NET — REST API and WebSocket streaming for stock trading, market data, and portfolio management.</Description>
+    <PackageId>SSI.FastConnect.Sdk</PackageId>
+    <PackageTags>ssi;fastconnect;trading;stock;market-data;websocket</PackageTags>
+  </PropertyGroup>
+
+</Project>
