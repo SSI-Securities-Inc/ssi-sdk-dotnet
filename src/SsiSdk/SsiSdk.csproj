@@ -9,7 +9,7 @@
     <Version>3.0.5</Version>
     <Authors>SSI Securities</Authors>
     <Description>SSI FastConnect SDK for .NET — REST API and WebSocket streaming for stock trading, market data, and portfolio management.</Description>
-    <PackageId>SSI.FastConnect.Sdk</PackageId>
+    <PackageId>SSIDeveloper.FastConnect.Sdk</PackageId>
     <PackageTags>ssi;fastconnect;trading;stock;market-data;websocket</PackageTags>
   </PropertyGroup>
 

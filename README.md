@@ -25,12 +25,12 @@
 
 Cài đặt package thông qua dotnet CLI:
 ```bash
-dotnet add package SSI.FastConnect.Sdk
+dotnet add package SSIDeveloper.FastConnect.Sdk
 ```
 
 Hoặc qua Package Manager Console:
 ```powershell
-Install-Package SSI.FastConnect.Sdk
+Install-Package SSIDeveloper.FastConnect.Sdk
 ```
 
 ---
