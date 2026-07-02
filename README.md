@@ -2,7 +2,11 @@
 
 .NET SDK cho nền tảng giao dịch chứng khoán SSI FastConnect. Hỗ trợ đầy đủ REST API và WebSocket streaming bất đồng bộ (async) với hiệu năng cao.
 
-**Yêu cầu:** .NET 8.0 LTS trở lên.
+[![NuGet version](https://img.shields.io/nuget/v/SSIDeveloper.FastConnect.Sdk?logo=nuget&label=nuget)](https://www.nuget.org/packages/SSIDeveloper.FastConnect.Sdk)
+[![NuGet downloads](https://img.shields.io/nuget/dt/SSIDeveloper.FastConnect.Sdk?logo=nuget&label=downloads)](https://www.nuget.org/packages/SSIDeveloper.FastConnect.Sdk)
+[![.NET version](https://img.shields.io/badge/.NET-8.0%2B-512BD4?logo=dotnet)](https://github.com/SSI-Securities-Inc/ssi-sdk-dotnet)
+[![Release](https://img.shields.io/github/v/release/SSI-Securities-Inc/ssi-sdk-dotnet)](https://github.com/SSI-Securities-Inc/ssi-sdk-dotnet/releases)
+[![License](https://img.shields.io/github/license/SSI-Securities-Inc/ssi-sdk-dotnet)](https://github.com/SSI-Securities-Inc/ssi-sdk-dotnet/blob/main/LICENSE)
 
 ---
 
