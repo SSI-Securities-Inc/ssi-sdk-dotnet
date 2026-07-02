@@ -1,0 +1,58 @@
+name: Publish to NuGet
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH: src/SsiSdk/SsiSdk.csproj
+  PACKAGE_OUTPUT_DIRECTORY: ${{ github.workspace }}/output
+  NUGET_SOURCE_URL: https://api.nuget.org/v3/index.json
+  DOTNET_VERSION: 8.0.x
+
+jobs:
+  build-test-pack-publish:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ssi-sdk-dotnet
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.PROJECT_PATH }}
+
+      - name: Build
+        run: dotnet build ${{ env.PROJECT_PATH }} --configuration Release --no-restore
+
+      # Lấy version từ tag git (vd: refs/tags/v1.2.3 -> 1.2.3)
+      - name: Extract version from tag
+        id: get_version
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Pack NuGet package
+        run: >
+          dotnet pack ${{ env.PROJECT_PATH }}
+          --configuration Release
+          --no-build
+          --output ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
+          -p:PackageVersion=${{ steps.get_version.outputs.version }}
