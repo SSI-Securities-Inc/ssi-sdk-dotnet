@@ -257,6 +257,43 @@ public sealed class PortfolioMessage
     };
 }
 
+public sealed class FCOOrderUpdateMessage
+{
+    public string Type { get; set; } = StreamingType.FCOOrder;
+    public string FCOID { get; set; } = string.Empty;
+    public string ProcessStatus { get; set; } = string.Empty;
+    public int MatchedQuantity { get; set; }
+    public bool IsPlaceOrder { get; set; }
+    public string Symbol { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public string Price { get; set; } = string.Empty;
+    public string AccountNo { get; set; } = string.Empty;
+    public string UpdatedTime { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string EventType { get; set; } = string.Empty;
+    public string FCOType { get; set; } = string.Empty;
+
+    internal static FCOOrderUpdateMessage FromJson(JsonElement el) => new()
+    {
+        FCOID = Converter.ToStr(Converter.GetProp(el, "fcoId")),
+        ProcessStatus = Converter.ToStr(Converter.GetProp(el, "processStatus")),
+        MatchedQuantity = Converter.ToInt(Converter.GetProp(el, "matchedQuantity")),
+        IsPlaceOrder = Converter.GetProp(el, "isPlaceOrder")?.ValueKind == JsonValueKind.True,
+        Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
+        Quantity = Converter.ToInt(Converter.GetProp(el, "quantity")),
+        Price = Converter.ToStr(Converter.GetProp(el, "price")),
+        AccountNo = Converter.ToStr(Converter.GetProp(el, "accountNo")),
+        UpdatedTime = Converter.ToStr(Converter.GetProp(el, "updatedTime")),
+        Status = Converter.ToStr(Converter.GetProp(el, "status")),
+        Message = Converter.ToStr(Converter.GetProp(el, "message")),
+        Username = Converter.ToStr(Converter.GetProp(el, "username")),
+        EventType = Converter.ToStr(Converter.GetProp(el, "eventType")),
+        FCOType = Converter.ToStr(Converter.GetProp(el, "type")),
+    };
+}
+
 internal static class StreamingMessageParser
 {
     public static object ParseDataMessage(string topic, JsonElement data)
@@ -277,8 +314,16 @@ internal static class StreamingMessageParser
 
     public static object ParseTradingMessage(string topic, JsonElement data)
     {
-        if (topic.StartsWith("order.")) return OrderStatusMessage.FromJson(data);
+        if (topic.StartsWith("order."))
+        {
+            var eventType = Converter.ToStr(Converter.GetProp(data, "eventType"));
+            if (eventType == "fcoEvent")
+                return FCOOrderUpdateMessage.FromJson(data);
+            return OrderStatusMessage.FromJson(data);
+        }
         if (topic.StartsWith("portfolio.")) return PortfolioMessage.FromJson(data);
+        if (topic.StartsWith("fco_order.") || topic.StartsWith("fco.")) return FCOOrderUpdateMessage.FromJson(data);
         return data;
     }
 }
+

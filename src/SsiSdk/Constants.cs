@@ -15,6 +15,8 @@ internal static class Constants
     public const string HeaderAuthorization = "Authorization";
     public const string HeaderRetryAfter = "Retry-After";
     public const string HeaderSignature = "X-Signature";
+    public const string HeaderUserAgent = "User-Agent";
+    public const string DefaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     public const string ContentTypeJson = "application/json";
     public const string AuthSchemeBearer = "Bearer ";
 
@@ -34,6 +36,9 @@ internal static class Constants
 
     public const string EpTradingOrder = "/api/v3/trading/order";
     public const string EpTradingMaxBuySell = "/api/v3/trading/maxBuySell";
+    public const string EpTradingFcoOrder = "/api/v3/trading/fco/order";
+    public const string EpTradingFcoList = "/api/v3/trading/fco/list";
+    public const string EpTradingFcoOrderBook = "/api/v3/trading/fco/orderbook";
 
     public const string EpAccountInfo = "/api/v3/account/info";
     public const string EpAccountBalance = "/api/v3/trading/accountBalance";
@@ -41,3 +46,4 @@ internal static class Constants
     public const string EpPositions = "/api/v3/trading/position";
     public const string EpOrderHistory = "/api/v3/trading/orderBook";
 }
+

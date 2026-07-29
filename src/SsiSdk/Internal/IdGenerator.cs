@@ -36,4 +36,8 @@ internal static class IdGenerator
     public static string TodayDateStr() => DateTime.Now.ToString("yyyy/MM/dd");
     public static string BeginningOfDay() => DateTime.Now.ToString("yyyy/MM/dd") + " 00:00:00";
     public static string EndOfDay() => DateTime.Now.ToString("yyyy/MM/dd") + " 23:59:59";
+    public static string FromBeginningOfDay() => BeginningOfDay();
+    public static string FromEndOfDay() => EndOfDay();
+    public static string ConvertToDatetimeStr(DateTime dt) => dt.ToString("yyyy/MM/dd HH:mm:ss");
 }
+

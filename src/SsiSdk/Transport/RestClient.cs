@@ -32,7 +32,9 @@ internal sealed class RestClient : IDisposable
             Timeout = TimeSpan.FromSeconds(config.TimeoutSeconds),
         };
         _httpClient.DefaultRequestHeaders.Add(Constants.HeaderAccept, Constants.ContentTypeJson);
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(Constants.DefaultUserAgent);
     }
+
 
     public string GetPrivateKey() => _config.PrivateKey;
 

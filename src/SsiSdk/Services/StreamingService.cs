@@ -197,6 +197,9 @@ public sealed class StreamingService
         return SubscribeAsync(StreamingMethod.Subscribe, StreamingChannel.Trading, [$"order.{accountNo}"], ct);
     }
 
+    public Task SubscribeFcoOrderStatusAsync(string accountNo = "*", CancellationToken ct = default) =>
+        SubscribeOrderStatusAsync(accountNo, ct);
+
     public Task SubscribePortfolioAsync(string accountNo = "*", CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(accountNo)) accountNo = "*";
@@ -205,3 +208,4 @@ public sealed class StreamingService
 
     public Task WaitAsync(TimeSpan? timeout = null) => _ws.WaitAsync(timeout);
 }
+
