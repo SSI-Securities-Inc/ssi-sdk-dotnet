@@ -31,15 +31,36 @@ public sealed class MarketDataService
         return OhlcData.FromJsonArray(Converter.GetProp(data, "data"));
     }
 
-    public Task<DownloadData> DownloadOhlc1MinuteAsync(string symbol, CancellationToken ct = default)
+    public async Task<List<OhlcData>> DownloadOhlc1MinuteAsync(string symbol, CancellationToken ct = default)
     {
-        throw new NotImplementedException("OHLC download is not implemented yet");
+        Validate.RequireNonEmpty(symbol, "symbol");
+        var allData = new List<OhlcData>();
+        var page = 1;
+        while (true)
+        {
+            var list = await GetOhlcAsync(symbol, Timeframe.Minute1, IdGenerator.BeginningOfDay(), IdGenerator.EndOfDay(), page, Constants.DefaultSize, ct);
+            allData.AddRange(list);
+            if (list.Count < Constants.DefaultSize) break;
+            page++;
+        }
+        return allData;
     }
 
-    public Task<DownloadData> DownloadOhlc1DayAsync(string symbol, CancellationToken ct = default)
+    public async Task<List<OhlcData>> DownloadOhlc1DayAsync(string symbol, CancellationToken ct = default)
     {
-        throw new NotImplementedException("OHLC download is not implemented yet");
+        Validate.RequireNonEmpty(symbol, "symbol");
+        var allData = new List<OhlcData>();
+        var page = 1;
+        while (true)
+        {
+            var list = await GetOhlcAsync(symbol, Timeframe.Day1, IdGenerator.BeginningOfDay(), IdGenerator.EndOfDay(), page, Constants.DefaultSize, ct);
+            allData.AddRange(list);
+            if (list.Count < Constants.DefaultSize) break;
+            page++;
+        }
+        return allData;
     }
+
 
     public Task<List<OhlcData>> GetOhlc1MinuteAsync(string symbol, CancellationToken ct = default)
     {

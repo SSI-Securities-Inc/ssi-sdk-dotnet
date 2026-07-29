@@ -6,11 +6,11 @@ namespace SsiSdk.Models;
 public sealed class EquityAccountBalance
 {
     public string AccountNo { get; set; } = string.Empty;
-    public double AvailableCash { get; set; }
+    public double AccountBalance { get; set; }
     public double TotalDebt { get; set; }
     public double InterestLoan { get; set; }
     public double OverdueFeeLoan { get; set; }
-    public double Withdrawal { get; set; }
+    public double Withdrawable { get; set; }
     public double OnHoldCash { get; set; }
     public double SellUnmatched { get; set; }
     public double SellT0 { get; set; }
@@ -23,43 +23,39 @@ public sealed class EquityAccountBalance
     public double AdvanceCashT0 { get; set; }
     public double AdvanceCashT1 { get; set; }
     public double HoldSubscription { get; set; }
-    public double BankBalance { get; set; }
-    public double Dividend { get; set; }
-    public double DividendMargin { get; set; }
-    public double BlockCash { get; set; }
-    public double InterestCash { get; set; }
-    public double LimitT0 { get; set; }
-    public double TermDeposit { get; set; }
 
-    internal static EquityAccountBalance FromJson(JsonElement el) => new()
+    internal static EquityAccountBalance FromJson(JsonElement el)
     {
-        AccountNo = Converter.ToStr(Converter.GetProp(el, "accountNo")),
-        AvailableCash = Converter.ToFloat64(Converter.GetProp(el, "availableCash")),
-        TotalDebt = Converter.ToFloat64(Converter.GetProp(el, "totalDebt")),
-        InterestLoan = Converter.ToFloat64(Converter.GetProp(el, "interestLoan")),
-        OverdueFeeLoan = Converter.ToFloat64(Converter.GetProp(el, "overdueFeeLoan")),
-        Withdrawal = Converter.ToFloat64(Converter.GetProp(el, "withdrawal")),
-        OnHoldCash = Converter.ToFloat64(Converter.GetProp(el, "onHoldCash")),
-        SellUnmatched = Converter.ToFloat64(Converter.GetProp(el, "sellUnmatched")),
-        SellT0 = Converter.ToFloat64(Converter.GetProp(el, "sellT0")),
-        SellT1 = Converter.ToFloat64(Converter.GetProp(el, "sellT1")),
-        SellT2 = Converter.ToFloat64(Converter.GetProp(el, "sellT2")),
-        BuyUnmatched = Converter.ToFloat64(Converter.GetProp(el, "buyUnmatched")),
-        BuyT0 = Converter.ToFloat64(Converter.GetProp(el, "buyT0")),
-        BuyT1 = Converter.ToFloat64(Converter.GetProp(el, "buyT1")),
-        BuyT2 = Converter.ToFloat64(Converter.GetProp(el, "buyT2")),
-        AdvanceCashT0 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT0")),
-        AdvanceCashT1 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT1")),
-        HoldSubscription = Converter.ToFloat64(Converter.GetProp(el, "holdSubscription")),
-        BankBalance = Converter.ToFloat64(Converter.GetProp(el, "bankBalance")),
-        Dividend = Converter.ToFloat64(Converter.GetProp(el, "dividend")),
-        DividendMargin = Converter.ToFloat64(Converter.GetProp(el, "dividendMargin")),
-        BlockCash = Converter.ToFloat64(Converter.GetProp(el, "blockCash")),
-        InterestCash = Converter.ToFloat64(Converter.GetProp(el, "interestCash")),
-        LimitT0 = Converter.ToFloat64(Converter.GetProp(el, "limitT0")),
-        TermDeposit = Converter.ToFloat64(Converter.GetProp(el, "termDeposit")),
-    };
+        var accBal = Converter.ToFloat64(Converter.GetProp(el, "accountBalance"));
+        if (accBal == 0) accBal = Converter.ToFloat64(Converter.GetProp(el, "availableCash"));
+
+        var withdrawable = Converter.ToFloat64(Converter.GetProp(el, "withdrawable"));
+        if (withdrawable == 0) withdrawable = Converter.ToFloat64(Converter.GetProp(el, "withdrawal"));
+
+        return new EquityAccountBalance
+        {
+            AccountNo = Converter.ToStr(Converter.GetProp(el, "accountNo")),
+            AccountBalance = accBal,
+            TotalDebt = Converter.ToFloat64(Converter.GetProp(el, "totalDebt")),
+            InterestLoan = Converter.ToFloat64(Converter.GetProp(el, "interestLoan")),
+            OverdueFeeLoan = Converter.ToFloat64(Converter.GetProp(el, "overdueFeeLoan")),
+            Withdrawable = withdrawable,
+            OnHoldCash = Converter.ToFloat64(Converter.GetProp(el, "onHoldCash")),
+            SellUnmatched = Converter.ToFloat64(Converter.GetProp(el, "sellUnmatched")),
+            SellT0 = Converter.ToFloat64(Converter.GetProp(el, "sellT0")),
+            SellT1 = Converter.ToFloat64(Converter.GetProp(el, "sellT1")),
+            SellT2 = Converter.ToFloat64(Converter.GetProp(el, "sellT2")),
+            BuyUnmatched = Converter.ToFloat64(Converter.GetProp(el, "buyUnmatched")),
+            BuyT0 = Converter.ToFloat64(Converter.GetProp(el, "buyT0")),
+            BuyT1 = Converter.ToFloat64(Converter.GetProp(el, "buyT1")),
+            BuyT2 = Converter.ToFloat64(Converter.GetProp(el, "buyT2")),
+            AdvanceCashT0 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT0")),
+            AdvanceCashT1 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT1")),
+            HoldSubscription = Converter.ToFloat64(Converter.GetProp(el, "holdSubscription")),
+        };
+    }
 }
+
 
 public sealed class DerivativeAccountBalance
 {

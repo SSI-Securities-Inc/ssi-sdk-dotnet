@@ -82,7 +82,42 @@ public static class StreamingType
     public const string Order = "orderEvent";
     public const string OrderMatch = "orderMatchEvent";
     public const string Portfolio = "clientPortfolioEvent";
+    public const string FCOOrder = "fcoOrderEvent";
 }
+
+public static class FCOType
+{
+    public const string GTD = "gtd";
+    public const string Stop = "stop";
+    public const string StopLimit = "stop_limit";
+    public const string TrailingStop = "trailing_stop";
+    public const string TrailingStopLimit = "trailing_stop_limit";
+    public const string OCO = "oco";
+    public const string BullBear = "bullbear";
+}
+
+public static class FCOOperator
+{
+    public const string Greater = "greater";
+    public const string GreaterOrEqual = "greater_or_equal";
+    public const string Lesser = "lesser";
+    public const string LesserOrEqual = "lesser_or_equal";
+    public const string Equal = "equal";
+}
+
+public static class FCOStatus
+{
+    public const string Init = "INIT";
+    public const string Wait = "WAIT";
+    public const string Tri = "TRI";
+    public const string Trit = "TRIT";
+    public const string Ter = "TER";
+    public const string Fis = "FIS";
+    public const string Wc = "WC";
+    public const string Exp = "EXP";
+    public const string Err = "ERR";
+}
+
 
 internal static class DataTopic
 {

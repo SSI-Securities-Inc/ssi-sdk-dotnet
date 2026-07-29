@@ -160,7 +160,7 @@ class Program
 
         // Xem số dư tài khoản cơ sở (Equity)
         var balance = await tradingClient.Portfolio.GetEquityBalanceAsync("0001234567");
-        Console.WriteLine($"Tiền có thể rút: {balance?.AvailableCash}");
+        Console.WriteLine($"Số dư tài khoản: {balance?.AccountBalance}");
 
         // 5. Kết nối WebSocket streaming
         using var streamClient = new StreamClient(auth);
@@ -348,7 +348,7 @@ Sử dụng `PortfolioService` thông qua `TradingClient.Portfolio` để quản
 ```csharp
 // Số dư tài khoản cơ sở
 EquityAccountBalance? eqBalance = await trading.Portfolio.GetEquityBalanceAsync("0001234567");
-Console.WriteLine($"Tiền mặt khả dụng: {eqBalance?.AvailableCash}");
+Console.WriteLine($"Số dư tài khoản: {eqBalance?.AccountBalance}");
 
 // Số dư tài khoản phái sinh
 DerivativeAccountBalance? derBalance = await trading.Portfolio.GetDerivativeBalanceAsync("0001234568");
@@ -449,6 +449,78 @@ CancelOrderResponse cancelResponse = await trading.Trading.CancelOrderAsync(
 MaxBuySellResponse maxInfo = await trading.Trading.GetMaxBuySellAsync("0001234567", "SSI", 35000);
 Console.WriteLine($"Khối lượng mua tối đa: {maxInfo.MaxBuyQuantity}");
 ```
+
+### 5.5. Lệnh điều kiện (Flexible Conditional Orders - FCO)
+
+SDK hỗ trợ 7 loại lệnh điều kiện linh hoạt FCO, tra cứu danh sách lệnh FCO, nhật ký sổ lệnh FCO và hủy lệnh FCO:
+
+```csharp
+using SsiSdk;
+using SsiSdk.Internal;
+
+string accountNo = "1234561";
+string fromDate = IdGenerator.BeginningOfDay(); // "YYYY/MM/DD 00:00:00"
+string toDate = IdGenerator.EndOfDay();         // "YYYY/MM/DD 23:59:59"
+
+// 1. Đặt lệnh GTD (Good Till Date)
+var gtd = await trading.Trading.PlaceFcoGtdAsync(
+    accountNo, "SSI", OrderSide.Buy, 100, 25000, 0.5, fromDate, toDate
+);
+
+// 2. Đặt lệnh Stop Market
+var stop = await trading.Trading.PlaceFcoStopAsync(
+    accountNo, "SSI", OrderSide.Sell, 100, 24000, FCOOperator.LesserOrEqual, fromDate, toDate
+);
+
+// 3. Đặt lệnh Stop Limit
+var stopLimit = await trading.Trading.PlaceFcoStopLimitAsync(
+    accountNo, "SSI", OrderSide.Buy, 100, 25500, 0.5, 25000, FCOOperator.GreaterOrEqual, fromDate, toDate
+);
+
+// 4. Đặt lệnh Trailing Stop
+var trailing = await trading.Trading.PlaceFcoTrailingStopAsync(
+    accountNo, "SSI", OrderSide.Buy, 100, 26000, 1000, fromDate, toDate
+);
+
+// 5. Đặt lệnh Trailing Stop Limit
+var trailingLimit = await trading.Trading.PlaceFcoTrailingStopLimitAsync(
+    accountNo, "SSI", OrderSide.Buy, 100, 26000, 1000, 0.5, fromDate, toDate
+);
+
+// 6. Đặt lệnh OCO (One-Cancels-the-Other)
+var oco = await trading.Trading.PlaceFcoOcoAsync(
+    accountNo, "SSI", OrderSide.Sell, 100, 30000, 24000, OrderType.MTL, OrderType.MTL, 0.5, 0.5, fromDate, toDate
+);
+
+// 7. Đặt lệnh Bull Bear
+var bullBear = await trading.Trading.PlaceFcoBullBearAsync(
+    accountNo, "SSI", OrderSide.Buy, 1000, 100.5, 0.5, 30, 20, 30, 10, 0.1, 0, fromDate, toDate
+);
+
+// 8. Tra cứu danh sách lệnh FCO
+var fcoList = await trading.Trading.GetFcoByAccountNoAsync(accountNo, 1, 10);
+
+// 9. Hủy lệnh FCO
+var cancelRes = await trading.Trading.CancelFcoAsync(gtd.FCOID);
+```
+
+| Method | Mô tả |
+| :--- | :--- |
+| `PlaceFcoGtdAsync(...)` | Đặt lệnh GTD (Good Till Date) |
+| `PlaceFcoStopAsync(...)` | Đặt lệnh Stop Market |
+| `PlaceFcoStopLimitAsync(...)` | Đặt lệnh Stop Limit |
+| `PlaceFcoTrailingStopAsync(...)` | Đặt lệnh Trailing Stop Market |
+| `PlaceFcoTrailingStopLimitAsync(...)` | Đặt lệnh Trailing Stop Limit |
+| `PlaceFcoOcoAsync(...)` | Đặt lệnh OCO (One Cancels the Other) |
+| `PlaceFcoBullBearAsync(...)` | Đặt lệnh Bull Bear |
+| `CancelFcoAsync(fcoId)` | Hủy lệnh FCO theo `fcoId` |
+| `GetFcoByAccountNoAsync(...)` | Tra cứu danh sách FCO theo tài khoản |
+| `GetFcoBySymbolAsync(...)` | Tra cứu FCO lọc theo mã chứng khoán |
+| `GetFcoByStatusAsync(...)` | Tra cứu FCO lọc theo trạng thái |
+| `GetFcoByDateAsync(...)` | Tra cứu FCO lọc theo khoảng ngày |
+| `GetFcoByIdAsync(...)` | Lấy thông tin 1 lệnh FCO theo ID |
+| `GetFcoOrderBookAsync(...)` | Lấy lịch sử thực thi (Order Book) của FCO |
+
 
 ---
 
@@ -754,11 +826,11 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
 | :--- | :--- | :--- |
 | `AccountNo` | `string` | Số tài khoản |
-| `AvailableCash` | `double` | Tiền mặt khả dụng |
+| `AccountBalance` | `double` | Số dư tài khoản |
 | `TotalDebt` | `double` | Tổng dư nợ |
 | `InterestLoan` | `double` | Tiền lãi vay phát sinh |
 | `OverdueFeeLoan` | `double` | Phí vay quá hạn |
-| `Withdrawal` | `double` | Tiền mặt có thể rút |
+| `Withdrawable` | `double` | Tiền mặt có thể rút |
 | `OnHoldCash` | `double` | Tiền đang tạm giữ |
 | `SellUnmatched` | `double` | Giá trị lệnh bán chưa khớp |
 | `SellT0` / `SellT1` / `SellT2` | `double` | Tiền bán chờ về T+0, T+1, T+2 |

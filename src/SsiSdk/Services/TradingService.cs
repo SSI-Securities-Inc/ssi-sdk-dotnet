@@ -202,4 +202,314 @@ public sealed class TradingService
         var data = await _rest.GetAsync(Constants.EpTradingMaxBuySell, p, ct: ct);
         return MaxBuySellResponse.FromJson(data, symbol);
     }
+
+    // ---------------------------------------------------------------------------
+    // Flexible Conditional Orders (FCO)
+    // ---------------------------------------------------------------------------
+
+    private async Task<FCOPlaceResponse> PlaceFcoOrderInternalAsync(Dictionary<string, object> payload, CancellationToken ct)
+    {
+        payload["deviceId"] = DeviceId;
+        payload["userAgent"] = UserAgent;
+
+        var (json, sig) = SerializeAndSign(payload);
+        var headers = new Dictionary<string, string> { [Constants.HeaderSignature] = sig };
+        var data = await _rest.PostAsync(Constants.EpTradingFcoOrder, json, headers, ct);
+        var res = JsonSerializer.Deserialize<FCOPlaceResponse>(data.GetRawText());
+        return res ?? new FCOPlaceResponse();
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoGtdAsync(
+        string accountNo, string symbol, string side, int quantity, object price, double priceSlip,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+        Validate.RequireNonEmpty(side, "side");
+
+        var isStringPrice = price is string;
+        var priceStr = isStringPrice ? (string)price : Convert.ToDouble(price, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+        var slip = isStringPrice ? 0 : priceSlip;
+
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.GTD,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["price"] = priceStr,
+            ["priceSlip"] = slip,
+            ["quantity"] = quantity,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoStopAsync(
+        string accountNo, string symbol, string side, int quantity, double stopPrice, string operatorType,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.Stop,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["price"] = OrderType.MTL,
+            ["priceSlip"] = 0,
+            ["quantity"] = quantity,
+            ["stopPrice"] = stopPrice,
+            ["operator"] = operatorType,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoStopLimitAsync(
+        string accountNo, string symbol, string side, int quantity, object price, double priceSlip, double stopPrice, string operatorType,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var priceStr = price.ToString()!;
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.StopLimit,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["price"] = priceStr,
+            ["priceSlip"] = priceSlip,
+            ["quantity"] = quantity,
+            ["stopPrice"] = stopPrice,
+            ["operator"] = operatorType,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoTrailingStopAsync(
+        string accountNo, string symbol, string side, int quantity, double activePrice, double trailingAmount,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.TrailingStop,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["quantity"] = quantity,
+            ["activePrice"] = activePrice,
+            ["trailingAmount"] = trailingAmount,
+            ["price"] = OrderType.MTL,
+            ["priceSlip"] = 0,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoTrailingStopLimitAsync(
+        string accountNo, string symbol, string side, int quantity, double activePrice, double trailingAmount, double priceSlip,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.TrailingStopLimit,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["quantity"] = quantity,
+            ["activePrice"] = activePrice,
+            ["trailingAmount"] = trailingAmount,
+            ["priceSlip"] = priceSlip,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoOcoAsync(
+        string accountNo, string symbol, string side, int quantity, double tpActivePrice, double slActivePrice,
+        object tpPrice, object slPrice, double tpSlip, double slSlip,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.OCO,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["quantity"] = quantity,
+            ["tpActivePrice"] = tpActivePrice,
+            ["slActivePrice"] = slActivePrice,
+            ["tpPrice"] = tpPrice.ToString()!,
+            ["slPrice"] = slPrice.ToString()!,
+            ["tpSlip"] = tpSlip,
+            ["slSlip"] = slSlip,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+            ["price"] = "MP",
+            ["priceSlip"] = 0,
+            ["stopPrice"] = 0,
+            ["activePrice"] = 0,
+            ["trailingAmount"] = 0,
+            ["operator"] = "",
+            ["code"] = "",
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public Task<FCOPlaceResponse> PlaceFcoBullBearAsync(
+        string accountNo, string symbol, string side, int quantity, object price, double priceSlip,
+        double tpActivePrice, double slActivePrice, object tpPrice, object slPrice, double tpSlip, double slSlip,
+        string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+
+        var payload = new Dictionary<string, object>
+        {
+            ["accountNo"] = accountNo,
+            ["type"] = FCOType.BullBear,
+            ["symbol"] = symbol,
+            ["side"] = side,
+            ["quantity"] = quantity,
+            ["price"] = price.ToString()!,
+            ["priceSlip"] = priceSlip,
+            ["tpActivePrice"] = tpActivePrice,
+            ["slActivePrice"] = slActivePrice,
+            ["tpPrice"] = tpPrice.ToString()!,
+            ["slPrice"] = slPrice.ToString()!,
+            ["tpSlip"] = tpSlip,
+            ["slSlip"] = slSlip,
+            ["from"] = fromDate,
+            ["to"] = toDate,
+        };
+        return PlaceFcoOrderInternalAsync(payload, ct);
+    }
+
+    public async Task<FCOCancelResponse> CancelFcoAsync(string fcoId, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(fcoId, "fcoId");
+        var payload = new Dictionary<string, object>
+        {
+            ["fcoId"] = fcoId,
+            ["deviceId"] = DeviceId,
+            ["userAgent"] = UserAgent,
+        };
+        var (json, sig) = SerializeAndSign(payload);
+        var headers = new Dictionary<string, string> { [Constants.HeaderSignature] = sig };
+        var data = await _rest.DeleteAsync(Constants.EpTradingFcoOrder, json, headers, ct);
+        var res = JsonSerializer.Deserialize<FCOCancelResponse>(data.GetRawText());
+        return res ?? new FCOCancelResponse();
+    }
+
+    public async Task<FCOListResponse> GetFcoByAccountNoAsync(string accountNo, int pageIndex = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        var p = new Dictionary<string, string>
+        {
+            ["accountNo"] = accountNo,
+            ["pageIndex"] = pageIndex.ToString(CultureInfo.InvariantCulture),
+            ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoList, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOListResponse>(data.GetRawText());
+        return res ?? new FCOListResponse();
+    }
+
+    public async Task<FCOListResponse> GetFcoBySymbolAsync(string accountNo, string symbol, int pageIndex = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(symbol, "symbol");
+        var p = new Dictionary<string, string>
+        {
+            ["accountNo"] = accountNo,
+            ["symbol"] = symbol,
+            ["pageIndex"] = pageIndex.ToString(CultureInfo.InvariantCulture),
+            ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoList, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOListResponse>(data.GetRawText());
+        return res ?? new FCOListResponse();
+    }
+
+    public async Task<FCOListResponse> GetFcoByStatusAsync(string accountNo, string processStatus, int pageIndex = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(processStatus, "processStatus");
+        var p = new Dictionary<string, string>
+        {
+            ["accountNo"] = accountNo,
+            ["processStatus"] = processStatus,
+            ["pageIndex"] = pageIndex.ToString(CultureInfo.InvariantCulture),
+            ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoList, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOListResponse>(data.GetRawText());
+        return res ?? new FCOListResponse();
+    }
+
+    public async Task<FCOListResponse> GetFcoByDateAsync(string accountNo, string fromDate, string toDate, int pageIndex = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        var p = new Dictionary<string, string>
+        {
+            ["accountNo"] = accountNo,
+            ["fromDate"] = fromDate,
+            ["toDate"] = toDate,
+            ["pageIndex"] = pageIndex.ToString(CultureInfo.InvariantCulture),
+            ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoList, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOListResponse>(data.GetRawText());
+        return res ?? new FCOListResponse();
+    }
+
+    public async Task<FCOInfo?> GetFcoByIdAsync(string accountNo, string fcoId, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(accountNo, "accountNo");
+        Validate.RequireNonEmpty(fcoId, "fcoId");
+        var p = new Dictionary<string, string>
+        {
+            ["accountNo"] = accountNo,
+            ["fcoId"] = fcoId,
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoList, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOListResponse>(data.GetRawText());
+        return res?.FCOList.FirstOrDefault();
+    }
+
+    public async Task<FCOOrderBookResponse> GetFcoOrderBookAsync(string fcoId, int pageIndex = 1, int pageSize = 10, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(fcoId, "fcoId");
+        var p = new Dictionary<string, string>
+        {
+            ["fcoId"] = fcoId,
+            ["pageIndex"] = pageIndex.ToString(CultureInfo.InvariantCulture),
+            ["pageSize"] = pageSize.ToString(CultureInfo.InvariantCulture),
+        };
+        var data = await _rest.GetAsync(Constants.EpTradingFcoOrderBook, p, ct: ct);
+        var res = JsonSerializer.Deserialize<FCOOrderBookResponse>(data.GetRawText());
+        return res ?? new FCOOrderBookResponse();
+    }
 }
+

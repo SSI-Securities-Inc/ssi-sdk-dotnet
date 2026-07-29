@@ -6,7 +6,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>SsiSdk</RootNamespace>
     <AssemblyName>SsiSdk</AssemblyName>
-    <Version>3.0.5</Version>
+    <Version>3.1.1</Version>
+
     <Authors>SSI Securities</Authors>
     <Description>SSI FastConnect SDK for .NET — REST API and WebSocket streaming for stock trading, market data, and portfolio management.</Description>
     <PackageId>SSIDeveloper.FastConnect.Sdk</PackageId>
