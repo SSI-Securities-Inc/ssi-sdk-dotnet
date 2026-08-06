@@ -46,7 +46,7 @@ public sealed class TokenManager
         }
     }
 
-    public async Task<Token> AuthenticateAsync(string otp = "", CancellationToken ct = default)
+    public async Task<Token> AuthenticateAsync(string otp = "", string transactionId = "", CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_apiSecret))
             throw new AuthenticationException("api_key and api_secret are required for authentication");
@@ -58,6 +58,8 @@ public sealed class TokenManager
         };
         if (!string.IsNullOrEmpty(otp))
             body["otp"] = otp;
+        if (!string.IsNullOrEmpty(transactionId))
+            body["transactionId"] = transactionId;
 
         var data = await _rest.PostAsync(Constants.EpAccessToken, body, ct: ct);
         var payload = ExtractPayload(data)
@@ -118,7 +120,12 @@ public sealed class TokenManager
         Log.Info("Access token set manually");
     }
 
-    public async Task<string> EnsureAuthenticatedAsync(string otp = "", CancellationToken ct = default)
+    public async Task<string> EnsureAuthenticatedAsync(
+        string otp = "",
+        string transactionId = "",
+        TimeSpan? pollInterval = null,
+        int pollMaxRetries = 6,
+        CancellationToken ct = default)
     {
         if (_token is null || IsTokenExpired)
         {
@@ -128,14 +135,38 @@ public sealed class TokenManager
             }
             else if (!string.IsNullOrEmpty(otp))
             {
-                await AuthenticateAsync(otp, ct);
+                await AuthenticateAsync(otp: otp, ct: ct);
+            }
+            else if (!string.IsNullOrEmpty(transactionId))
+            {
+                await PollSmartOtpAsync(transactionId, pollInterval ?? TimeSpan.FromSeconds(5), pollMaxRetries, ct);
             }
             else
             {
-                throw new AuthenticationException("OTP is required to authenticate — no refresh token available");
+                throw new AuthenticationException("OTP or Smart OTP transactionId is required to authenticate — no refresh token available");
             }
         }
         return AccessToken;
+    }
+
+    private async Task<Token> PollSmartOtpAsync(string transactionId, TimeSpan interval, int maxRetries, CancellationToken ct)
+    {
+        for (var attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                return await AuthenticateAsync(transactionId: transactionId, ct: ct);
+            }
+            catch (Exception ex)
+            {
+                if (attempt >= maxRetries)
+                    throw new AuthenticationException($"Smart OTP approval not confirmed after {maxRetries} attempts — please approve on your device.", innerException: ex);
+
+                Log.Info($"[Smart OTP] Pending approval (attempt {attempt}/{maxRetries}), retrying in {interval.TotalSeconds}s...");
+                await Task.Delay(interval, ct);
+            }
+        }
+        throw new AuthenticationException("Smart OTP polling failed");
     }
 
     private static JsonElement? ExtractPayload(JsonElement data)

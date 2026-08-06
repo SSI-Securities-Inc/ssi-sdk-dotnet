@@ -9,8 +9,8 @@ public class SsiException : Exception
     public Dictionary<string, JsonElement>? ResponseBody { get; }
 
     public SsiException(string message, string code = "", int statusCode = 0,
-        Dictionary<string, JsonElement>? responseBody = null)
-        : base(message)
+        Dictionary<string, JsonElement>? responseBody = null, Exception? innerException = null)
+        : base(message, innerException)
     {
         Code = code;
         StatusCode = statusCode;
@@ -21,8 +21,8 @@ public class SsiException : Exception
 public class AuthenticationException : SsiException
 {
     public AuthenticationException(string message, string code = "", int statusCode = 0,
-        Dictionary<string, JsonElement>? responseBody = null)
-        : base(message, code, statusCode, responseBody) { }
+        Dictionary<string, JsonElement>? responseBody = null, Exception? innerException = null)
+        : base(message, code, statusCode, responseBody, innerException) { }
 }
 
 public class ApiException : SsiException

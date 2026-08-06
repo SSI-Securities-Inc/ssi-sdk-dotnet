@@ -191,13 +191,29 @@ Token token = await auth.AuthenticateAsync();
 
 ### 1.2. Xác thực đầy đủ với OTP (Dùng cho Trading/Streaming)
 ```csharp
-Token token = await auth.AuthenticateAsync("123456");
+// Xác thực bằng OTP 6 số
+Token token = await auth.AuthenticateAsync(otp: "123456");
+
+// Smart OTP: truyền transactionId (lấy từ RequestOtpAsync) thay vì otp —
+// chỉ gọi được sau khi user đã bấm approve trên thiết bị.
+Token token2 = await auth.AuthenticateAsync(transactionId: "TRANSACTION_ID");
 ```
+
+`otp` và `transactionId` loại trừ lẫn nhau — chỉ truyền một trong hai.
 
 ### 1.3. Yêu cầu gửi mã OTP về điện thoại/email
 ```csharp
-await auth.RequestOtpAsync();
+JsonElement result = await auth.RequestOtpAsync();
 ```
+
+**Tài khoản đã kích hoạt Smart OTP có 2 cách để xác thực:**
+
+1. **Approve trên app** — gọi `RequestOtpAsync()` để bắn yêu cầu lên thiết bị,
+   lấy `transactionId`, rồi dùng `EnsureAuthenticatedAsync(transactionId: transactionId)` để
+   SDK tự poll cho đến khi user bấm approve.
+2. **Lấy mã trực tiếp trên app** — mở app Smart OTP, đọc mã hiển thị sẵn, rồi
+   điền thẳng mã đó vào `EnsureAuthenticatedAsync(otp: "123456")` (hoặc `AuthenticateAsync(otp: "123456")`)
+   — **không cần** gọi `RequestOtpAsync()` trước.
 
 ### 1.4. Làm mới Token thủ công
 ```csharp
@@ -206,8 +222,20 @@ Token token = await auth.RefreshAsync();
 
 ### 1.5. Đảm bảo tự động xác thực và làm mới Token
 ```csharp
-// Tự động làm mới nếu token hết hạn, hoặc yêu cầu xác thực bằng OTP nếu cần
-string accessToken = await auth.EnsureAuthenticatedAsync(otp: "123456");
+// 1) Refresh nếu có refresh token còn dùng được — không cần otp/transactionId
+string accessToken1 = await auth.EnsureAuthenticatedAsync();
+
+// 2) OTP thường (SMS/email) hoặc mã Smart OTP lấy trực tiếp trên app
+string accessToken2 = await auth.EnsureAuthenticatedAsync(otp: "123456");
+
+// 3) Smart OTP dạng push-approval (truyền transactionId lấy từ RequestOtpAsync)
+var otpResult = await auth.RequestOtpAsync();
+string transactionId = otpResult.GetProperty("data").GetProperty("transactionId").GetString()!;
+string accessToken3 = await auth.EnsureAuthenticatedAsync(
+    transactionId: transactionId,
+    pollInterval: TimeSpan.FromSeconds(5),
+    pollMaxRetries: 6
+);
 ```
 
 ### 1.6. Kiểm tra trạng thái token
@@ -317,6 +345,23 @@ SecuritiesInfo? info = await data.MarketData.GetSecuritiesInfoAsync("SSI");
 
 // Danh sách mã trong rổ VN30
 List<SecuritiesInfo> vn30Stocks = await data.MarketData.GetSecuritiesInfoByIndexAsync("VN30");
+```
+
+### 3.5. Master Data (giá trần/sàn/tham chiếu)
+
+SDK tự động phân trang để lấy đầy đủ tất cả các mã:
+
+```csharp
+// Hôm nay
+List<MasterData> masterData = await data.MarketData.GetMasterDataAsync();
+
+// Khoảng ngày tự chọn
+List<MasterData> masterHist = await data.MarketData.GetMasterDataHistoricalAsync("2026/08/05", "2026/08/06");
+
+foreach (var item in masterData)
+{
+    Console.WriteLine($"{item.Board} {item.Symbol}: trần={item.Ceiling} sàn={item.Floor} TC={item.RefPrice}");
+}
 ```
 
 ---

@@ -33,6 +33,7 @@ internal static class Constants
     public const string EpDataIndexSummary = "/api/v3/data/indexSummary";
     public const string EpDataSecuritiesByBoard = "/api/v3/data/securitiesByBoard";
     public const string EpDataSecuritiesSummary = "/api/v3/data/securitiesSummary";
+    public const string EpDataMasterData = "/api/v3/data/masterdata";
 
     public const string EpTradingOrder = "/api/v3/trading/order";
     public const string EpTradingMaxBuySell = "/api/v3/trading/maxBuySell";

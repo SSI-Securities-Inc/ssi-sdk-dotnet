@@ -298,4 +298,44 @@ public sealed class MarketDataService
         var data = await _rest.GetAsync(Constants.EpDataSecuritiesSummary, p, ct: ct);
         return SecuritiesSummary.FromJsonArray(Converter.GetProp(data, "data"));
     }
+
+    public async Task<List<MasterData>> GetMasterDataAsync(CancellationToken ct = default)
+    {
+        var today = IdGenerator.TodayDateStr();
+        return await GetMasterDataHistoricalAsync(today, today, ct);
+    }
+
+    public async Task<List<MasterData>> GetMasterDataHistoricalAsync(string fromDate, string toDate, CancellationToken ct = default)
+    {
+        Validate.RequireNonEmpty(fromDate, "fromDate");
+        Validate.RequireNonEmpty(toDate, "toDate");
+
+        var items = new List<MasterData>();
+        var page = Constants.DefaultPage;
+
+        while (true)
+        {
+            var p = new Dictionary<string, string>
+            {
+                ["From"] = fromDate,
+                ["To"] = toDate,
+                ["pageIndex"] = page.ToString(),
+                ["pageSize"] = Constants.DefaultSize.ToString(),
+            };
+
+            var data = await _rest.GetAsync(Constants.EpDataMasterData, p, ct: ct);
+            var rawItems = MasterData.FromJsonArray(Converter.GetProp(data, "data"));
+            items.AddRange(rawItems);
+
+            var totalPageProp = Converter.GetProp(data, "totalPage");
+            var totalPage = totalPageProp is not null ? Converter.ToInt(totalPageProp.Value) : 1;
+
+            if (page >= totalPage || rawItems.Count == 0)
+                break;
+
+            page++;
+        }
+
+        return items;
+    }
 }

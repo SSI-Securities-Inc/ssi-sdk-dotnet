@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SsiSdk.Models;
 using SsiSdk.Services;
 using SsiSdk.Transport;
@@ -23,16 +24,21 @@ public sealed class AuthClient : IDisposable
         TokenManager = new TokenManager(_restClient, config.ApiKey, config.ApiSecret);
     }
 
-    public Task<Token> AuthenticateAsync(string otp = "", CancellationToken ct = default) =>
-        TokenManager.AuthenticateAsync(otp, ct);
+    public Task<Token> AuthenticateAsync(string otp = "", string transactionId = "", CancellationToken ct = default) =>
+        TokenManager.AuthenticateAsync(otp, transactionId, ct);
 
     public Task<Token> RefreshAsync(CancellationToken ct = default) =>
         TokenManager.RefreshAsync(ct);
 
-    public Task<string> EnsureAuthenticatedAsync(string otp = "", CancellationToken ct = default) =>
-        TokenManager.EnsureAuthenticatedAsync(otp, ct);
+    public Task<string> EnsureAuthenticatedAsync(
+        string otp = "",
+        string transactionId = "",
+        TimeSpan? pollInterval = null,
+        int pollMaxRetries = 6,
+        CancellationToken ct = default) =>
+        TokenManager.EnsureAuthenticatedAsync(otp, transactionId, pollInterval, pollMaxRetries, ct);
 
-    public Task RequestOtpAsync(CancellationToken ct = default) =>
+    public Task<JsonElement> RequestOtpAsync(CancellationToken ct = default) =>
         TokenManager.RequestOtpAsync(ct);
 
     public string AccessToken => TokenManager.AccessToken;

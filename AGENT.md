@@ -71,8 +71,9 @@ var stream = new StreamClient(auth);
 | `DownloadOhlc1DayAsync` | `symbol` | `Task<List<OhlcData>>` | Download full 1-day OHLC history |
 | `GetMarketIndexesAsync` | `indexId` | `Task<List<MarketIndex>>` | Get list of market indexes |
 | `GetMarketIndexSummaryAsync` | `indexId, fromDate, toDate, page, size` | `Task<MarketIndexSummary>` | Summary metrics for an index |
-| `GetSecuritiesInfoAsync` | `symbol, market, page, size` | `Task<SecuritiesInfo>` | Security details |
 | `GetSecuritiesSummaryAsync` | `symbol, market, page, size` | `Task<SecuritiesSummary>` | Summary of stock transactions |
+| `GetMasterDataAsync` | None | `Task<List<MasterData>>` | Query ceiling, floor, ref prices for today |
+| `GetMasterDataHistoricalAsync` | `fromDate, toDate` | `Task<List<MasterData>>` | Query ceiling, floor, ref prices for date range |
 
 ### 3.2 Account & Portfolio (`trading.Account` & `trading.Portfolio`)
 

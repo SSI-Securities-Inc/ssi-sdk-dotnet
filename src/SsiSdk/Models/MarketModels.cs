@@ -256,3 +256,30 @@ public sealed class DownloadData
         return result;
     }
 }
+
+public sealed class MasterData
+{
+    public string Board { get; set; } = string.Empty;
+    public string Symbol { get; set; } = string.Empty;
+    public string TradingDate { get; set; } = string.Empty;
+    public double Ceiling { get; set; }
+    public double Floor { get; set; }
+    public double RefPrice { get; set; }
+
+    internal static MasterData FromJson(JsonElement el)
+    {
+        var refPriceProp = Converter.GetProp(el, "refPrice") ?? Converter.GetProp(el, "referencePrice");
+        return new MasterData
+        {
+            Board = Converter.ToStr(Converter.GetProp(el, "board")),
+            Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
+            TradingDate = Converter.ToStr(Converter.GetProp(el, "tradingDate")),
+            Ceiling = Converter.ToFloat64(Converter.GetProp(el, "ceiling")),
+            Floor = Converter.ToFloat64(Converter.GetProp(el, "floor")),
+            RefPrice = Converter.ToFloat64(refPriceProp),
+        };
+    }
+
+    internal static List<MasterData> FromJsonArray(JsonElement? el) =>
+        Converter.GetArray(el).Select(FromJson).ToList();
+}
