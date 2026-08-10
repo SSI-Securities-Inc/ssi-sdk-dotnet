@@ -2,6 +2,6 @@ namespace SsiSdk;
 
 public static class SdkVersion
 {
-    public const string Value = "3.1.1";
+    public const string Value = "3.2.0";
 }
 

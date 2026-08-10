@@ -24,8 +24,13 @@ public sealed class AuthClient : IDisposable
         TokenManager = new TokenManager(_restClient, config.ApiKey, config.ApiSecret);
     }
 
-    public Task<Token> AuthenticateAsync(string otp = "", string transactionId = "", CancellationToken ct = default) =>
-        TokenManager.AuthenticateAsync(otp, transactionId, ct);
+    public Task<Token> AuthenticateAsync(
+        string otp = "",
+        string transactionId = "",
+        TimeSpan? pollInterval = null,
+        int pollMaxRetries = 6,
+        CancellationToken ct = default) =>
+        TokenManager.AuthenticateAsync(otp, transactionId, pollInterval, pollMaxRetries, ct);
 
     public Task<Token> RefreshAsync(CancellationToken ct = default) =>
         TokenManager.RefreshAsync(ct);

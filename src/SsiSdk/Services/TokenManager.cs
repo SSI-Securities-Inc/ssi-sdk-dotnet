@@ -46,7 +46,21 @@ public sealed class TokenManager
         }
     }
 
-    public async Task<Token> AuthenticateAsync(string otp = "", string transactionId = "", CancellationToken ct = default)
+    public async Task<Token> AuthenticateAsync(
+        string otp = "",
+        string transactionId = "",
+        TimeSpan? pollInterval = null,
+        int pollMaxRetries = 6,
+        CancellationToken ct = default)
+    {
+        if (!string.IsNullOrEmpty(transactionId))
+        {
+            return await PollSmartOtpAsync(transactionId, pollInterval ?? TimeSpan.FromSeconds(5), pollMaxRetries, ct);
+        }
+        return await AuthenticateOnceAsync(otp: otp, ct: ct);
+    }
+
+    private async Task<Token> AuthenticateOnceAsync(string otp = "", string transactionId = "", CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(_apiKey) || string.IsNullOrEmpty(_apiSecret))
             throw new AuthenticationException("api_key and api_secret are required for authentication");
@@ -62,12 +76,12 @@ public sealed class TokenManager
             body["transactionId"] = transactionId;
 
         var data = await _rest.PostAsync(Constants.EpAccessToken, body, ct: ct);
-        var payload = ExtractPayload(data)
-            ?? throw new ApiException("Unexpected response format while authenticating");
+        if (ExtractPayload(data) is not { } payload)
+            throw new ApiException("Push-approval is pending", "202", Constants.SmartOtpPendingStatus, ToDictionary(data));
 
         _token = Models.Token.FromJson(payload);
         if (string.IsNullOrEmpty(_token.AccessToken))
-            throw new ApiException("Authentication payload is missing access token");
+            throw new ApiException("Push-approval is pending", "202", Constants.SmartOtpPendingStatus, ToDictionary(data));
 
         _rest.SetAuthHeader(_token.AccessToken);
         Log.Info("Authentication successful");
@@ -87,12 +101,12 @@ public sealed class TokenManager
         };
 
         var data = await _rest.PostAsync(Constants.EpRefreshToken, body, ct: ct);
-        var payload = ExtractPayload(data)
-            ?? throw new ApiException("Unexpected response format while refreshing token");
+        if (ExtractPayload(data) is not { } payload)
+            throw new ApiException("Unexpected response format while refreshing token", responseBody: ToDictionary(data));
 
         _token = Models.Token.FromJson(payload);
         if (string.IsNullOrEmpty(_token.AccessToken))
-            throw new ApiException("Refreshed token payload is missing access token");
+            throw new ApiException("Refreshed token payload is missing access token", responseBody: ToDictionary(data));
 
         _rest.SetAuthHeader(_token.AccessToken);
         Log.Info("Token refreshed successfully");
@@ -127,19 +141,15 @@ public sealed class TokenManager
         int pollMaxRetries = 6,
         CancellationToken ct = default)
     {
-        if (_token is null || IsTokenExpired)
+        if (!string.IsNullOrEmpty(otp) || !string.IsNullOrEmpty(transactionId))
+        {
+            await AuthenticateAsync(otp, transactionId, pollInterval, pollMaxRetries, ct);
+        }
+        else if (_token is null || IsTokenExpired)
         {
             if (HasRefreshToken)
             {
                 await RefreshAsync(ct);
-            }
-            else if (!string.IsNullOrEmpty(otp))
-            {
-                await AuthenticateAsync(otp: otp, ct: ct);
-            }
-            else if (!string.IsNullOrEmpty(transactionId))
-            {
-                await PollSmartOtpAsync(transactionId, pollInterval ?? TimeSpan.FromSeconds(5), pollMaxRetries, ct);
             }
             else
             {
@@ -149,16 +159,36 @@ public sealed class TokenManager
         return AccessToken;
     }
 
+    private static bool IsSmartOtpPending(Exception ex)
+    {
+        if (ex is SsiException ssiEx)
+        {
+            if (ssiEx.StatusCode == Constants.SmartOtpPendingStatus) return true;
+            if (ssiEx.ResponseBody is not null)
+            {
+                if (ssiEx.ResponseBody.TryGetValue("code", out var codeElem) &&
+                    (codeElem.ToString() == Constants.SmartOtpPendingCode.ToString() || codeElem.ToString() == "401114"))
+                    return true;
+                if (ssiEx.ResponseBody.TryGetValue("status", out var statusElem) && statusElem.ToString() == "202")
+                    return true;
+            }
+        }
+        return false;
+    }
+
     private async Task<Token> PollSmartOtpAsync(string transactionId, TimeSpan interval, int maxRetries, CancellationToken ct)
     {
         for (var attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
-                return await AuthenticateAsync(transactionId: transactionId, ct: ct);
+                return await AuthenticateOnceAsync(transactionId: transactionId, ct: ct);
             }
             catch (Exception ex)
             {
+                if (!IsSmartOtpPending(ex))
+                    throw;
+
                 if (attempt >= maxRetries)
                     throw new AuthenticationException($"Smart OTP approval not confirmed after {maxRetries} attempts — please approve on your device.", innerException: ex);
 
@@ -167,6 +197,12 @@ public sealed class TokenManager
             }
         }
         throw new AuthenticationException("Smart OTP polling failed");
+    }
+
+    private static Dictionary<string, JsonElement>? ToDictionary(JsonElement data)
+    {
+        if (data.ValueKind != JsonValueKind.Object) return null;
+        return data.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
     }
 
     private static JsonElement? ExtractPayload(JsonElement data)

@@ -27,6 +27,9 @@ internal static class Constants
     public const string EpRefreshToken = "/api/v3/auth/refresh";
     public const string EpRequestOtp = "/api/v3/auth/requestOtp";
 
+    public const int SmartOtpPendingStatus = 202;
+    public const int SmartOtpPendingCode = 401114;
+
     public const string EpDataOhlc = "/api/v3/data/ohlc";
     public const string EpDataOhlcDownload = "/api/v3/data/ohlc/download";
     public const string EpDataIndexList = "/api/v3/data/indexList";
