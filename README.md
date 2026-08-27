@@ -843,6 +843,8 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `IcbName` | `string?` | Tên ngành ICB |
 | `IIndex` | `double?` | Chỉ số I |
 | `INav` | `double?` | Giá trị tài sản ròng NAV |
+| `OpenInterest` | `double?` | Khối lượng mở (phái sinh) |
+| `SettlementPrice` | `double?` | Giá thanh toán (phái sinh) |
 
 #### `SecuritiesSummary`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -862,6 +864,16 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `TotalTradeBuy` | `double` | Tổng giá trị mua |
 | `TotalSell` | `int` | Tổng khối lượng bán |
 | `TotalTradeSell` | `double` | Tổng giá trị bán |
+| `TotalForeignBuy` | `int` | KL mua khối ngoại |
+| `TotalForeignBuyValue` | `double` | GT mua khối ngoại |
+| `TotalForeignSell` | `int` | KL bán khối ngoại |
+| `TotalForeignSellValue` | `double` | GT bán khối ngoại |
+| `RemainForeignRoom` | `int` | Room ngoại còn lại |
+| `TotalForeignRoom` | `int` | Tổng room ngoại |
+| `TotalDeal` | `int` | KL giao dịch thỏa thuận |
+| `TotalDealValue` | `double` | GT giao dịch thỏa thuận |
+| `OpenInterest` | `double` | Khối lượng mở (phái sinh) |
+| `SettlementPrice` | `double` | Giá thanh toán (phái sinh) |
 
 #### `EquityAccountBalance`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -879,13 +891,7 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `BuyT0` / `BuyT1` / `BuyT2` | `double` | Tiền mua chờ thanh toán T+0, T+1, T+2 |
 | `AdvanceCashT0` / `AdvanceCashT1` | `double` | Giá trị ứng trước tiền bán T+0, T+1 |
 | `HoldSubscription` | `double` | Tiền phong toả đăng ký quyền mua |
-| `BankBalance` | `double` | Số dư tài khoản liên kết ngân hàng |
-| `Dividend` | `double` | Cổ tức bằng tiền mặt |
-| `DividendMargin` | `double` | Cổ tức ký quỹ |
-| `BlockCash` | `double` | Tiền bị phong toả |
-| `InterestCash` | `double` | Tiền lãi tiền gửi nhận được |
-| `LimitT0` | `double` | Hạn mức mua T+0 |
-| `TermDeposit` | `double` | Tiền gửi có kỳ hạn tại SSI |
+| `Dividend` | `double` | Cổ tức chờ về/đã ghi nhận |
 
 #### `DerivativeAccountBalance`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
