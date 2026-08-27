@@ -1,6 +1,6 @@
 # AGENT.md — AI Agent Integration Guide for ssi-sdk-dotnet
 
-This guide provides AI coding assistants (Claude, Gemini, Cursor, Copilot, etc.) with instructions, code patterns, architectural conventions, and an API cheatsheet for integrating and interacting with the `ssi-sdk-dotnet` (v3.1.1) package.
+This guide provides AI coding assistants (Claude, Gemini, Cursor, Copilot, etc.) with instructions, code patterns, architectural conventions, and an API cheatsheet for integrating and interacting with the `ssi-sdk-dotnet` (v3.2.1) package.
 
 ---
 
