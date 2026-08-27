@@ -119,6 +119,8 @@ public sealed class SecuritiesInfo
     public string? IcbName { get; set; }
     public double? IIndex { get; set; }
     public double? INav { get; set; }
+    public double? OpenInterest { get; set; }
+    public double? SettlementPrice { get; set; }
 
     internal static SecuritiesInfo FromJson(JsonElement el)
     {
@@ -129,7 +131,7 @@ public sealed class SecuritiesInfo
             SymbolNameVi = Converter.ToStr(Converter.GetProp(el, "symbolNameVi")),
             SymbolNameEn = Converter.ToStr(Converter.GetProp(el, "symbolNameEn")),
             LotSize = Converter.ToInt(Converter.GetProp(el, "lotSize")),
-            ListedShares = Converter.ToInt(Converter.GetProp(el, "listedShares")),
+            ListedShares = Converter.ToInt(Converter.GetProp(el, "listedShare")),
         };
 
         var board = Converter.ToStr(Converter.GetProp(el, "board"));
@@ -160,6 +162,12 @@ public sealed class SecuritiesInfo
         prop = Converter.GetProp(el, "iNav");
         if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
             si.INav = Converter.ToFloat64(prop);
+        prop = Converter.GetProp(el, "openInterest");
+        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
+            si.OpenInterest = Converter.ToFloat64(prop);
+        prop = Converter.GetProp(el, "settlementPrice");
+        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
+            si.SettlementPrice = Converter.ToFloat64(prop);
 
         return si;
     }
@@ -185,6 +193,16 @@ public sealed class SecuritiesSummary
     public double TotalTradeBuy { get; set; }
     public int TotalSell { get; set; }
     public double TotalTradeSell { get; set; }
+    public int TotalForeignBuy { get; set; }
+    public double TotalForeignBuyValue { get; set; }
+    public int TotalForeignSell { get; set; }
+    public double TotalForeignSellValue { get; set; }
+    public int RemainForeignRoom { get; set; }
+    public int TotalForeignRoom { get; set; }
+    public int TotalDeal { get; set; }
+    public double TotalDealValue { get; set; }
+    public double OpenInterest { get; set; }
+    public double SettlementPrice { get; set; }
 
     internal static SecuritiesSummary FromJson(JsonElement el) => new()
     {
@@ -203,6 +221,16 @@ public sealed class SecuritiesSummary
         TotalTradeBuy = Converter.ToFloat64(Converter.GetProp(el, "totalTradeBuy")),
         TotalSell = Converter.ToInt(Converter.GetProp(el, "totalSell")),
         TotalTradeSell = Converter.ToFloat64(Converter.GetProp(el, "totalTradeSell")),
+        TotalForeignBuy = Converter.ToInt(Converter.GetProp(el, "totalForeignBuy")),
+        TotalForeignBuyValue = Converter.ToFloat64(Converter.GetProp(el, "totalForeignBuyValue")),
+        TotalForeignSell = Converter.ToInt(Converter.GetProp(el, "totalForeignSell")),
+        TotalForeignSellValue = Converter.ToFloat64(Converter.GetProp(el, "totalForeignSellValue")),
+        RemainForeignRoom = Converter.ToInt(Converter.GetProp(el, "remainForeignRoom")),
+        TotalForeignRoom = Converter.ToInt(Converter.GetProp(el, "totalForeignRoom")),
+        TotalDeal = Converter.ToInt(Converter.GetProp(el, "totalDeal")),
+        TotalDealValue = Converter.ToFloat64(Converter.GetProp(el, "totalDealValue")),
+        OpenInterest = Converter.ToFloat64(Converter.GetProp(el, "openInterest")),
+        SettlementPrice = Converter.ToFloat64(Converter.GetProp(el, "settlementPrice")),
     };
 
     internal static List<SecuritiesSummary> FromJsonArray(JsonElement? el) =>

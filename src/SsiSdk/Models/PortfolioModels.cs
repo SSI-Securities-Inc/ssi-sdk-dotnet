@@ -23,6 +23,7 @@ public sealed class EquityAccountBalance
     public double AdvanceCashT0 { get; set; }
     public double AdvanceCashT1 { get; set; }
     public double HoldSubscription { get; set; }
+    public double Dividend { get; set; }
 
     internal static EquityAccountBalance FromJson(JsonElement el)
     {
@@ -52,6 +53,7 @@ public sealed class EquityAccountBalance
             AdvanceCashT0 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT0")),
             AdvanceCashT1 = Converter.ToFloat64(Converter.GetProp(el, "advanceCashT1")),
             HoldSubscription = Converter.ToFloat64(Converter.GetProp(el, "holdSubscription")),
+            Dividend = Converter.ToFloat64(Converter.GetProp(el, "dividend")),
         };
     }
 }

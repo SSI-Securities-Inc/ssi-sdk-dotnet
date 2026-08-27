@@ -27,8 +27,8 @@ public record FCOInfo
     [JsonPropertyName("priceSlip")] public double PriceSlip { get; init; }
     [JsonPropertyName("symbol")] public string Symbol { get; init; } = string.Empty;
     [JsonPropertyName("type")] public string Type { get; init; } = string.Empty;
-    [JsonPropertyName("fromDate")] public string FromDate { get; init; } = string.Empty;
-    [JsonPropertyName("toDate")] public string ToDate { get; init; } = string.Empty;
+    [JsonPropertyName("from")] public string FromDate { get; init; } = string.Empty;
+    [JsonPropertyName("to")] public string ToDate { get; init; } = string.Empty;
     [JsonPropertyName("matchedQuantity")] public int MatchedQuantity { get; init; }
     [JsonPropertyName("isPlaceOrder")] public bool IsPlaceOrder { get; init; }
     [JsonPropertyName("status")] public string Status { get; init; } = string.Empty;
