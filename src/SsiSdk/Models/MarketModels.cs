@@ -3,48 +3,70 @@ using SsiSdk.Internal;
 
 namespace SsiSdk.Models;
 
+internal static class MarketParse
+{
+    /// <summary>Known board (any case) gives the canonical name, unknown text is kept as is, blank gives null.</summary>
+    public static string? Board(JsonElement? el)
+    {
+        var text = Converter.ToOptStr(el)?.Trim();
+        if (string.IsNullOrEmpty(text)) return null;
+        foreach (var known in new[] { SsiSdk.Board.HOSE, SsiSdk.Board.HNX, SsiSdk.Board.UPCOM, SsiSdk.Board.DERIVATIVES })
+        {
+            if (string.Equals(known, text, StringComparison.OrdinalIgnoreCase)) return known;
+        }
+        return text;
+    }
+
+    public static decimal? Dec(JsonElement el, string name) => Converter.ToDecimalOrNull(Converter.GetProp(el, name));
+    public static decimal DecOr0(JsonElement el, string name) => Converter.ToDecimal(Converter.GetProp(el, name));
+    public static int Int(JsonElement el, string name) => Converter.ToInt(Converter.GetProp(el, name));
+    public static int? OptInt(JsonElement el, string name) => Converter.ToOptInt(Converter.GetProp(el, name));
+    public static string Str(JsonElement el, string name) => Converter.ToStr(Converter.GetProp(el, name));
+    public static string? OptStr(JsonElement el, string name) => Converter.ToOptStr(Converter.GetProp(el, name));
+}
+
 public sealed class OhlcData
 {
     public string Symbol { get; set; } = string.Empty;
     public string TradingDate { get; set; } = string.Empty;
-    public double OpenPrice { get; set; }
-    public double HighPrice { get; set; }
-    public double LowPrice { get; set; }
-    public double ClosePrice { get; set; }
+    public decimal OpenPrice { get; set; }
+    public decimal HighPrice { get; set; }
+    public decimal LowPrice { get; set; }
+    public decimal ClosePrice { get; set; }
     public int Volume { get; set; }
-    public double Value { get; set; }
+    public decimal Value { get; set; }
 
     internal static OhlcData FromJson(JsonElement el) => new()
     {
-        Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
-        TradingDate = Converter.ToStr(Converter.GetProp(el, "tradingDate")),
-        OpenPrice = Converter.ToFloat64(Converter.GetProp(el, "open")),
-        HighPrice = Converter.ToFloat64(Converter.GetProp(el, "high")),
-        LowPrice = Converter.ToFloat64(Converter.GetProp(el, "low")),
-        ClosePrice = Converter.ToFloat64(Converter.GetProp(el, "close")),
-        Volume = Converter.ToInt(Converter.GetProp(el, "volume")),
-        Value = Converter.ToFloat64(Converter.GetProp(el, "value")),
+        Symbol = MarketParse.Str(el, "symbol"),
+        TradingDate = MarketParse.Str(el, "tradingDate"),
+        OpenPrice = MarketParse.DecOr0(el, "open"),
+        HighPrice = MarketParse.DecOr0(el, "high"),
+        LowPrice = MarketParse.DecOr0(el, "low"),
+        ClosePrice = MarketParse.DecOr0(el, "close"),
+        Volume = MarketParse.Int(el, "volume"),
+        Value = MarketParse.DecOr0(el, "value"),
     };
 
-    internal static List<OhlcData> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
+    internal static List<OhlcData> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
 
 public sealed class MarketIndexes
 {
     public string Index { get; set; } = string.Empty;
     public string IndexName { get; set; } = string.Empty;
+
+    /// <summary>The board as the server sent it (null when blank).</summary>
     public string? Board { get; set; }
 
     internal static MarketIndexes FromJson(JsonElement el) => new()
     {
-        Index = Converter.ToStr(Converter.GetProp(el, "index")),
-        IndexName = Converter.ToStr(Converter.GetProp(el, "indexName")),
-        Board = Converter.ToStr(Converter.GetProp(el, "board")) is { Length: > 0 } b ? b : null,
+        Index = MarketParse.Str(el, "index"),
+        IndexName = MarketParse.Str(el, "indexName"),
+        Board = MarketParse.Board(Converter.GetProp(el, "board")),
     };
 
-    internal static List<MarketIndexes> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
+    internal static List<MarketIndexes> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
 
 public sealed class MarketIndexSummary
@@ -53,51 +75,62 @@ public sealed class MarketIndexSummary
     public string Board { get; set; } = string.Empty;
     public string TradingDate { get; set; } = string.Empty;
     public int TotalTrade { get; set; }
-    public double TotalTradeValue { get; set; }
+    public decimal TotalTradeValue { get; set; }
     public int TotalMatch { get; set; }
-    public double TotalMatchValue { get; set; }
+    public decimal TotalMatchValue { get; set; }
     public int TotalDeal { get; set; }
-    public double TotalDealValue { get; set; }
-    public double IndexChange { get; set; }
-    public double IndexChangePercent { get; set; }
-    public double IndexValue { get; set; }
+    public decimal TotalDealValue { get; set; }
+    public decimal IndexChange { get; set; }
+    public decimal IndexChangePercent { get; set; }
+    public decimal IndexValue { get; set; }
     public int TotalAdvanceStock { get; set; }
     public int TotalDeclineStock { get; set; }
     public int TotalSteadyStock { get; set; }
     public int TotalCeilingStock { get; set; }
     public int TotalFloorStock { get; set; }
     public int TotalPropBuy { get; set; }
-    public double TotalPropBuyValue { get; set; }
+    public decimal TotalPropBuyValue { get; set; }
     public int TotalPropSell { get; set; }
-    public double TotalPropSellValue { get; set; }
+    public decimal TotalPropSellValue { get; set; }
+    public decimal? TotalBuyForeign { get; set; }
+    public decimal? TotalBuyForeignValue { get; set; }
+    public decimal? TotalSellForeign { get; set; }
+    public decimal? TotalSellForeignValue { get; set; }
+    public decimal? NetPurchasesForeignVolume { get; set; }
+    public decimal? NetPurchasesForeignValue { get; set; }
 
     internal static MarketIndexSummary FromJson(JsonElement el) => new()
     {
-        Index = Converter.ToStr(Converter.GetProp(el, "index")),
-        Board = Converter.ToStr(Converter.GetProp(el, "board")),
-        TradingDate = Converter.ToStr(Converter.GetProp(el, "tradingDate")),
-        TotalTrade = Converter.ToInt(Converter.GetProp(el, "totalTrade")),
-        TotalTradeValue = Converter.ToFloat64(Converter.GetProp(el, "totalTradeValue")),
-        TotalMatch = Converter.ToInt(Converter.GetProp(el, "totalMatch")),
-        TotalMatchValue = Converter.ToFloat64(Converter.GetProp(el, "totalMatchValue")),
-        TotalDeal = Converter.ToInt(Converter.GetProp(el, "totalDeal")),
-        TotalDealValue = Converter.ToFloat64(Converter.GetProp(el, "totalDealValue")),
-        IndexChange = Converter.ToFloat64(Converter.GetProp(el, "indexChange")),
-        IndexChangePercent = Converter.ToFloat64(Converter.GetProp(el, "indexChangePercentage")),
-        IndexValue = Converter.ToFloat64(Converter.GetProp(el, "indexValue")),
-        TotalAdvanceStock = Converter.ToInt(Converter.GetProp(el, "totalAdvanceStock")),
-        TotalDeclineStock = Converter.ToInt(Converter.GetProp(el, "totalDeclineStock")),
-        TotalSteadyStock = Converter.ToInt(Converter.GetProp(el, "totalNoChangeStock")),
-        TotalCeilingStock = Converter.ToInt(Converter.GetProp(el, "totalCeilingStock")),
-        TotalFloorStock = Converter.ToInt(Converter.GetProp(el, "totalFloorStock")),
-        TotalPropBuy = Converter.ToInt(Converter.GetProp(el, "totalPropBuy")),
-        TotalPropBuyValue = Converter.ToFloat64(Converter.GetProp(el, "totalPropBuyValue")),
-        TotalPropSell = Converter.ToInt(Converter.GetProp(el, "totalPropSell")),
-        TotalPropSellValue = Converter.ToFloat64(Converter.GetProp(el, "totalPropSellValue")),
+        Index = MarketParse.Str(el, "index"),
+        Board = MarketParse.Str(el, "board"),
+        TradingDate = MarketParse.Str(el, "tradingDate"),
+        TotalTrade = MarketParse.Int(el, "totalTrade"),
+        TotalTradeValue = MarketParse.DecOr0(el, "totalTradeValue"),
+        TotalMatch = MarketParse.Int(el, "totalMatch"),
+        TotalMatchValue = MarketParse.DecOr0(el, "totalMatchValue"),
+        TotalDeal = MarketParse.Int(el, "totalDeal"),
+        TotalDealValue = MarketParse.DecOr0(el, "totalDealValue"),
+        IndexChange = MarketParse.DecOr0(el, "indexChange"),
+        IndexChangePercent = MarketParse.DecOr0(el, "indexChangePercentage"),
+        IndexValue = MarketParse.DecOr0(el, "indexValue"),
+        TotalAdvanceStock = MarketParse.Int(el, "totalAdvanceStock"),
+        TotalDeclineStock = MarketParse.Int(el, "totalDeclineStock"),
+        TotalSteadyStock = MarketParse.Int(el, "totalNoChangeStock"),
+        TotalCeilingStock = MarketParse.Int(el, "totalCeilingStock"),
+        TotalFloorStock = MarketParse.Int(el, "totalFloorStock"),
+        TotalPropBuy = MarketParse.Int(el, "totalPropBuy"),
+        TotalPropBuyValue = MarketParse.DecOr0(el, "totalPropBuyValue"),
+        TotalPropSell = MarketParse.Int(el, "totalPropSell"),
+        TotalPropSellValue = MarketParse.DecOr0(el, "totalPropSellValue"),
+        TotalBuyForeign = MarketParse.Dec(el, "totalBuyForeign"),
+        TotalBuyForeignValue = MarketParse.Dec(el, "totalBuyForeignValue"),
+        TotalSellForeign = MarketParse.Dec(el, "totalSellForeign"),
+        TotalSellForeignValue = MarketParse.Dec(el, "totalSellForeignValue"),
+        NetPurchasesForeignVolume = MarketParse.Dec(el, "netPurchasesForeignVolume"),
+        NetPurchasesForeignValue = MarketParse.Dec(el, "netPurchasesForeignValue"),
     };
 
-    internal static List<MarketIndexSummary> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
+    internal static List<MarketIndexSummary> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
 
 public sealed class SecuritiesInfo
@@ -107,207 +140,137 @@ public sealed class SecuritiesInfo
     public string Index { get; set; } = string.Empty;
     public string SymbolNameVi { get; set; } = string.Empty;
     public string SymbolNameEn { get; set; } = string.Empty;
-    public int LotSize { get; set; }
+
+    /// <summary>Null when the server did not send it (it used to read as 0).</summary>
+    public int? LotSize { get; set; }
     public string? MaturityDate { get; set; }
     public string? FirstTradingDate { get; set; }
     public string? LastTradingDate { get; set; }
     public string? CwUnderlyingSymbol { get; set; }
-    public double? CwExercisePrice { get; set; }
-    public double? CwExecutionRatio { get; set; }
-    public int ListedShares { get; set; }
+    public decimal? CwExercisePrice { get; set; }
+    public decimal? CwExecutionRatio { get; set; }
+
+    /// <summary>Null when the server did not send it (it used to read as 0).</summary>
+    public int? ListedShares { get; set; }
     public string? IcbCode { get; set; }
     public string? IcbName { get; set; }
-    public double? IIndex { get; set; }
-    public double? INav { get; set; }
-    public double? OpenInterest { get; set; }
-    public double? SettlementPrice { get; set; }
+    public decimal? IIndex { get; set; }
+    public decimal? INav { get; set; }
+    public decimal? OpenInterest { get; set; }
+    public decimal? SettlementPrice { get; set; }
+    public string? StockType { get; set; }
 
-    internal static SecuritiesInfo FromJson(JsonElement el)
+    internal static SecuritiesInfo FromJson(JsonElement el) => new()
     {
-        var si = new SecuritiesInfo
-        {
-            Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
-            Index = Converter.ToStr(Converter.GetProp(el, "index")),
-            SymbolNameVi = Converter.ToStr(Converter.GetProp(el, "symbolNameVi")),
-            SymbolNameEn = Converter.ToStr(Converter.GetProp(el, "symbolNameEn")),
-            LotSize = Converter.ToInt(Converter.GetProp(el, "lotSize")),
-            ListedShares = Converter.ToInt(Converter.GetProp(el, "listedShare")),
-        };
+        Symbol = MarketParse.Str(el, "symbol"),
+        Board = MarketParse.Board(Converter.GetProp(el, "board")),
+        Index = MarketParse.Str(el, "index"),
+        SymbolNameVi = MarketParse.Str(el, "symbolNameVi"),
+        SymbolNameEn = MarketParse.Str(el, "symbolNameEn"),
+        LotSize = MarketParse.OptInt(el, "lotSize"),
+        MaturityDate = MarketParse.OptStr(el, "maturityDate"),
+        FirstTradingDate = MarketParse.OptStr(el, "firstTradingDate"),
+        LastTradingDate = MarketParse.OptStr(el, "lastTradingDate"),
+        CwUnderlyingSymbol = MarketParse.OptStr(el, "cwUnderlyingSymbol"),
+        CwExercisePrice = MarketParse.Dec(el, "cwExercisePrice"),
+        CwExecutionRatio = MarketParse.Dec(el, "cwExecutionRatio"),
+        ListedShares = MarketParse.OptInt(el, "listedShare"),
+        IcbCode = MarketParse.OptStr(el, "icbCode"),
+        IcbName = MarketParse.OptStr(el, "icbName"),
+        IIndex = MarketParse.Dec(el, "iIndex"),
+        INav = MarketParse.Dec(el, "iNav"),
+        OpenInterest = MarketParse.Dec(el, "openInterest"),
+        SettlementPrice = MarketParse.Dec(el, "settlementPrice"),
+        StockType = MarketParse.OptStr(el, "stockType"),
+    };
 
-        var board = Converter.ToStr(Converter.GetProp(el, "board"));
-        if (!string.IsNullOrEmpty(board)) si.Board = board;
-
-        var s = Converter.ToStr(Converter.GetProp(el, "maturityDate"));
-        if (!string.IsNullOrEmpty(s)) si.MaturityDate = s;
-        s = Converter.ToStr(Converter.GetProp(el, "firstTradingDate"));
-        if (!string.IsNullOrEmpty(s)) si.FirstTradingDate = s;
-        s = Converter.ToStr(Converter.GetProp(el, "lastTradingDate"));
-        if (!string.IsNullOrEmpty(s)) si.LastTradingDate = s;
-        s = Converter.ToStr(Converter.GetProp(el, "cwUnderlyingSymbol"));
-        if (!string.IsNullOrEmpty(s)) si.CwUnderlyingSymbol = s;
-        s = Converter.ToStr(Converter.GetProp(el, "icbCode"));
-        if (!string.IsNullOrEmpty(s)) si.IcbCode = s;
-        s = Converter.ToStr(Converter.GetProp(el, "icbName"));
-        if (!string.IsNullOrEmpty(s)) si.IcbName = s;
-
-        var prop = Converter.GetProp(el, "cwExercisePrice");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.CwExercisePrice = Converter.ToFloat64(prop);
-        prop = Converter.GetProp(el, "cwExecutionRatio");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.CwExecutionRatio = Converter.ToFloat64(prop);
-        prop = Converter.GetProp(el, "iIndex");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.IIndex = Converter.ToFloat64(prop);
-        prop = Converter.GetProp(el, "iNav");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.INav = Converter.ToFloat64(prop);
-        prop = Converter.GetProp(el, "openInterest");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.OpenInterest = Converter.ToFloat64(prop);
-        prop = Converter.GetProp(el, "settlementPrice");
-        if (prop is not null && prop.Value.ValueKind != JsonValueKind.Null)
-            si.SettlementPrice = Converter.ToFloat64(prop);
-
-        return si;
-    }
-
-    internal static List<SecuritiesInfo> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
+    internal static List<SecuritiesInfo> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
 
 public sealed class SecuritiesSummary
 {
     public string Symbol { get; set; } = string.Empty;
     public string TradingDate { get; set; } = string.Empty;
-    public double PriceChange { get; set; }
-    public double PriceChangePercent { get; set; }
-    public double OpenPrice { get; set; }
-    public double HighPrice { get; set; }
-    public double LowPrice { get; set; }
-    public double ClosePrice { get; set; }
-    public double AveragePrice { get; set; }
+    public decimal PriceChange { get; set; }
+    public decimal PriceChangePercent { get; set; }
+    public decimal OpenPrice { get; set; }
+    public decimal HighPrice { get; set; }
+    public decimal LowPrice { get; set; }
+    public decimal ClosePrice { get; set; }
+    public decimal AveragePrice { get; set; }
     public int TotalMatch { get; set; }
-    public double TotalMatchValue { get; set; }
+    public decimal TotalMatchValue { get; set; }
     public int TotalBuy { get; set; }
-    public double TotalTradeBuy { get; set; }
+    public decimal TotalTradeBuy { get; set; }
     public int TotalSell { get; set; }
-    public double TotalTradeSell { get; set; }
+    public decimal TotalTradeSell { get; set; }
     public int TotalForeignBuy { get; set; }
-    public double TotalForeignBuyValue { get; set; }
+    public decimal TotalForeignBuyValue { get; set; }
     public int TotalForeignSell { get; set; }
-    public double TotalForeignSellValue { get; set; }
+    public decimal TotalForeignSellValue { get; set; }
     public int RemainForeignRoom { get; set; }
     public int TotalForeignRoom { get; set; }
     public int TotalDeal { get; set; }
-    public double TotalDealValue { get; set; }
-    public double OpenInterest { get; set; }
-    public double SettlementPrice { get; set; }
+    public decimal TotalDealValue { get; set; }
+    public decimal OpenInterest { get; set; }
+    public decimal SettlementPrice { get; set; }
+    public decimal? Ceiling { get; set; }
+    public decimal? Floor { get; set; }
+    public decimal? RefPrice { get; set; }
 
     internal static SecuritiesSummary FromJson(JsonElement el) => new()
     {
-        Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
-        TradingDate = Converter.ToStr(Converter.GetProp(el, "tradingDate")),
-        PriceChange = Converter.ToFloat64(Converter.GetProp(el, "priceChange")),
-        PriceChangePercent = Converter.ToFloat64(Converter.GetProp(el, "priceChangePercentage")),
-        OpenPrice = Converter.ToFloat64(Converter.GetProp(el, "open")),
-        HighPrice = Converter.ToFloat64(Converter.GetProp(el, "high")),
-        LowPrice = Converter.ToFloat64(Converter.GetProp(el, "low")),
-        ClosePrice = Converter.ToFloat64(Converter.GetProp(el, "close")),
-        AveragePrice = Converter.ToFloat64(Converter.GetProp(el, "average")),
-        TotalMatch = Converter.ToInt(Converter.GetProp(el, "totalMatch")),
-        TotalMatchValue = Converter.ToFloat64(Converter.GetProp(el, "totalMatchValue")),
-        TotalBuy = Converter.ToInt(Converter.GetProp(el, "totalBuy")),
-        TotalTradeBuy = Converter.ToFloat64(Converter.GetProp(el, "totalTradeBuy")),
-        TotalSell = Converter.ToInt(Converter.GetProp(el, "totalSell")),
-        TotalTradeSell = Converter.ToFloat64(Converter.GetProp(el, "totalTradeSell")),
-        TotalForeignBuy = Converter.ToInt(Converter.GetProp(el, "totalForeignBuy")),
-        TotalForeignBuyValue = Converter.ToFloat64(Converter.GetProp(el, "totalForeignBuyValue")),
-        TotalForeignSell = Converter.ToInt(Converter.GetProp(el, "totalForeignSell")),
-        TotalForeignSellValue = Converter.ToFloat64(Converter.GetProp(el, "totalForeignSellValue")),
-        RemainForeignRoom = Converter.ToInt(Converter.GetProp(el, "remainForeignRoom")),
-        TotalForeignRoom = Converter.ToInt(Converter.GetProp(el, "totalForeignRoom")),
-        TotalDeal = Converter.ToInt(Converter.GetProp(el, "totalDeal")),
-        TotalDealValue = Converter.ToFloat64(Converter.GetProp(el, "totalDealValue")),
-        OpenInterest = Converter.ToFloat64(Converter.GetProp(el, "openInterest")),
-        SettlementPrice = Converter.ToFloat64(Converter.GetProp(el, "settlementPrice")),
+        Symbol = MarketParse.Str(el, "symbol"),
+        TradingDate = MarketParse.Str(el, "tradingDate"),
+        PriceChange = MarketParse.DecOr0(el, "priceChange"),
+        PriceChangePercent = MarketParse.DecOr0(el, "priceChangePercentage"),
+        OpenPrice = MarketParse.DecOr0(el, "open"),
+        HighPrice = MarketParse.DecOr0(el, "high"),
+        LowPrice = MarketParse.DecOr0(el, "low"),
+        ClosePrice = MarketParse.DecOr0(el, "close"),
+        AveragePrice = MarketParse.DecOr0(el, "average"),
+        TotalMatch = MarketParse.Int(el, "totalMatch"),
+        TotalMatchValue = MarketParse.DecOr0(el, "totalMatchValue"),
+        TotalBuy = MarketParse.Int(el, "totalBuy"),
+        TotalTradeBuy = MarketParse.DecOr0(el, "totalTradeBuy"),
+        TotalSell = MarketParse.Int(el, "totalSell"),
+        TotalTradeSell = MarketParse.DecOr0(el, "totalTradeSell"),
+        TotalForeignBuy = MarketParse.Int(el, "totalForeignBuy"),
+        TotalForeignBuyValue = MarketParse.DecOr0(el, "totalForeignBuyValue"),
+        TotalForeignSell = MarketParse.Int(el, "totalForeignSell"),
+        TotalForeignSellValue = MarketParse.DecOr0(el, "totalForeignSellValue"),
+        RemainForeignRoom = MarketParse.Int(el, "remainForeignRoom"),
+        TotalForeignRoom = MarketParse.Int(el, "totalForeignRoom"),
+        TotalDeal = MarketParse.Int(el, "totalDeal"),
+        TotalDealValue = MarketParse.DecOr0(el, "totalDealValue"),
+        OpenInterest = MarketParse.DecOr0(el, "openInterest"),
+        SettlementPrice = MarketParse.DecOr0(el, "settlementPrice"),
+        Ceiling = MarketParse.Dec(el, "ceiling"),
+        Floor = MarketParse.Dec(el, "floor"),
+        RefPrice = MarketParse.Dec(el, "refPrice"),
     };
 
-    internal static List<SecuritiesSummary> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
-}
-
-public sealed class DownloadData
-{
-    public List<Dictionary<string, object>> Data { get; set; } = [];
-    public int TotalCount { get; set; }
-
-    internal static DownloadData FromJson(JsonElement el)
-    {
-        var result = new DownloadData();
-        var dataProp = Converter.GetProp(el, "data");
-        if (dataProp is not null && dataProp.Value.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var item in dataProp.Value.EnumerateArray())
-            {
-                if (item.ValueKind == JsonValueKind.Object)
-                {
-                    var dict = new Dictionary<string, object>();
-                    foreach (var prop in item.EnumerateObject())
-                    {
-                        switch (prop.Value.ValueKind)
-                        {
-                            case JsonValueKind.String:
-                                dict[prop.Name] = prop.Value.GetString() ?? string.Empty;
-                                break;
-                            case JsonValueKind.Number:
-                                if (prop.Value.TryGetInt64(out var l)) dict[prop.Name] = l;
-                                else dict[prop.Name] = prop.Value.GetDouble();
-                                break;
-                            case JsonValueKind.True:
-                                dict[prop.Name] = true;
-                                break;
-                            case JsonValueKind.False:
-                                dict[prop.Name] = false;
-                                break;
-                            default:
-                                dict[prop.Name] = prop.Value.ToString();
-                                break;
-                        }
-                    }
-                    result.Data.Add(dict);
-                }
-            }
-        }
-        var totalProp = Converter.GetProp(el, "totalCount");
-        result.TotalCount = totalProp is not null ? Converter.ToInt(totalProp.Value) : result.Data.Count;
-        return result;
-    }
+    internal static List<SecuritiesSummary> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
 
 public sealed class MasterData
 {
-    public string Board { get; set; } = string.Empty;
+    public string? Board { get; set; }
     public string Symbol { get; set; } = string.Empty;
     public string TradingDate { get; set; } = string.Empty;
-    public double Ceiling { get; set; }
-    public double Floor { get; set; }
-    public double RefPrice { get; set; }
+    public decimal Ceiling { get; set; }
+    public decimal Floor { get; set; }
+    public decimal RefPrice { get; set; }
 
-    internal static MasterData FromJson(JsonElement el)
+    internal static MasterData FromJson(JsonElement el) => new()
     {
-        var refPriceProp = Converter.GetProp(el, "refPrice") ?? Converter.GetProp(el, "referencePrice");
-        return new MasterData
-        {
-            Board = Converter.ToStr(Converter.GetProp(el, "board")),
-            Symbol = Converter.ToStr(Converter.GetProp(el, "symbol")),
-            TradingDate = Converter.ToStr(Converter.GetProp(el, "tradingDate")),
-            Ceiling = Converter.ToFloat64(Converter.GetProp(el, "ceiling")),
-            Floor = Converter.ToFloat64(Converter.GetProp(el, "floor")),
-            RefPrice = Converter.ToFloat64(refPriceProp),
-        };
-    }
+        Board = MarketParse.Board(Converter.GetProp(el, "board")),
+        Symbol = MarketParse.Str(el, "symbol"),
+        TradingDate = MarketParse.Str(el, "tradingDate"),
+        Ceiling = MarketParse.DecOr0(el, "ceiling"),
+        Floor = MarketParse.DecOr0(el, "floor"),
+        RefPrice = Converter.ToDecimal(Converter.Pick(el, "refPrice", "referencePrice")),
+    };
 
-    internal static List<MasterData> FromJsonArray(JsonElement? el) =>
-        Converter.GetArray(el).Select(FromJson).ToList();
+    internal static List<MasterData> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }

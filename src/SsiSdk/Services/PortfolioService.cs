@@ -7,74 +7,62 @@ namespace SsiSdk.Services;
 
 public sealed class PortfolioService
 {
-    private static readonly Logger Log = new("ssi_sdk.services.portfolio");
     private readonly RestClient _rest;
     private readonly string _clientId;
 
-    internal PortfolioService(RestClient rest, string clientId)
+    internal PortfolioService(RestClient rest, Config config)
     {
         _rest = rest;
-        _clientId = clientId;
+        _clientId = config.ClientId;
     }
 
     public async Task<EquityAccountBalance?> GetEquityBalanceAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var p = new Dictionary<string, string> { ["clientId"] = _clientId, ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpAccountBalance, p, ct: ct);
-        var eq = Converter.GetProp(data, "equity");
-        return eq is not null ? EquityAccountBalance.FromJson(eq.Value) : null;
+        var data = await GetBalanceAsync(accountNo, ct);
+        return PM.NonEmptyObject(data, "equity") is { } eq ? EquityAccountBalance.FromJson(eq) : null;
     }
 
     public async Task<DerivativeAccountBalance?> GetDerivativeBalanceAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var p = new Dictionary<string, string> { ["clientId"] = _clientId, ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpAccountBalance, p, ct: ct);
-        var der = Converter.GetProp(data, "derivative");
-        return der is not null ? DerivativeAccountBalance.FromJson(der.Value) : null;
+        var data = await GetBalanceAsync(accountNo, ct);
+        return PM.NonEmptyObject(data, "derivative") is { } der ? DerivativeAccountBalance.FromJson(der) : null;
     }
 
-    public async Task<List<EquityPosition>> GetEquityPositionsAsync(string accountNo, CancellationToken ct = default)
+    private async Task<JsonElement> GetBalanceAsync(string accountNo, CancellationToken ct) =>
+        Converter.Payload(await _rest.GetAsync(Constants.EpAccountBalance, BalanceParams(accountNo), ct: ct));
+
+    /// <summary>Equity positions, or null when the account has none.</summary>
+    public async Task<List<EquityPosition>?> GetEquityPositionsAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var p = new Dictionary<string, string> { ["clientId"] = _clientId, ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpPositions, p, ct: ct);
-        return EquityPosition.FromJsonArray(Converter.GetProp(data, "equity"));
+        return (await GetPositionsAsync(accountNo, ct)).Equity;
     }
 
     public async Task<List<DerivativePosition>> GetOpenDerivativePositionsAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var data = await GetDerivativePositionsRaw(accountNo, ct);
-        return data is not null
-            ? DerivativePosition.FromJsonArray(Converter.GetProp(data.Value, "derOpenPositions"))
-            : [];
+        return (await GetPositionsAsync(accountNo, ct)).Derivative?.OpenPositions ?? [];
     }
 
     public async Task<List<DerivativePosition>> GetClosedDerivativePositionsAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var data = await GetDerivativePositionsRaw(accountNo, ct);
-        return data is not null
-            ? DerivativePosition.FromJsonArray(Converter.GetProp(data.Value, "derClosePositions"))
-            : [];
+        return (await GetPositionsAsync(accountNo, ct)).Derivative?.ClosedPositions ?? [];
     }
 
-    public async Task<AllDerivativePosition> GetDerivativePositionsAsync(string accountNo, CancellationToken ct = default)
+    /// <summary>Open and closed derivative positions, or null when the account has none.</summary>
+    public async Task<AllDerivativePosition?> GetDerivativePositionsAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var data = await GetDerivativePositionsRaw(accountNo, ct);
-        return data is not null
-            ? AllDerivativePosition.FromJson(data.Value)
-            : new AllDerivativePosition();
+        return (await GetPositionsAsync(accountNo, ct)).Derivative;
     }
 
-    private async Task<JsonElement?> GetDerivativePositionsRaw(string accountNo, CancellationToken ct)
+    private async Task<Position> GetPositionsAsync(string accountNo, CancellationToken ct)
     {
-        var p = new Dictionary<string, string> { ["clientId"] = _clientId, ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpPositions, p, ct: ct);
-        return Converter.GetProp(data, "derivative");
+        var data = await _rest.GetAsync(Constants.EpPositions, PositionsParams(accountNo), ct: ct);
+        return Position.FromJson(Converter.Payload(data), accountNo);
     }
 
     public async Task<List<Order>> GetTodayOrdersAsync(string accountNo, CancellationToken ct = default)
@@ -94,37 +82,41 @@ public sealed class PortfolioService
 
     private async Task<List<Order>> GetOrdersAsync(string accountNo, string fromDate, string toDate, CancellationToken ct)
     {
-        var p = new Dictionary<string, string>
-        {
-            ["accountNo"] = accountNo,
-            ["from"] = fromDate,
-            ["to"] = toDate,
-            ["pageIndex"] = Constants.DefaultPage.ToString(),
-            ["pageSize"] = Constants.DefaultSize.ToString(),
-        };
-        var data = await _rest.GetAsync(Constants.EpOrderHistory, p, ct: ct);
-        var acct = Converter.ToStr(Converter.GetProp(data, "accountNo"));
-        var orderList = Converter.GetProp(data, "orderList");
-        if (orderList is null || orderList.Value.ValueKind != JsonValueKind.Array) return [];
-        return Converter.GetArray(orderList).Select(el => Order.FromJson(el, acct)).ToList();
+        var data = await _rest.GetAsync(Constants.EpOrderHistory, OrderBookParams(accountNo, fromDate, toDate), ct: ct);
+        return OrderBook.FromJson(data).Orders;
     }
 
-    // PPMMR
     public async Task<EquityPPMMR?> GetEquityPpmmrAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var p = new Dictionary<string, string> { ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpAccountPpmmr, p, ct: ct);
-        var eq = Converter.GetProp(data, "equity");
-        return eq is not null ? EquityPPMMR.FromJson(eq.Value) : null;
+        var data = await GetPpmmrAsync(accountNo, ct);
+        return PM.NonEmptyObject(data, "equity") is { } eq ? EquityPPMMR.FromJson(eq) : null;
     }
 
     public async Task<DerivativePPMMR?> GetDerivativePpmmrAsync(string accountNo, CancellationToken ct = default)
     {
         Validate.RequireNonEmpty(accountNo, "accountNo");
-        var p = new Dictionary<string, string> { ["accountNo"] = accountNo };
-        var data = await _rest.GetAsync(Constants.EpAccountPpmmr, p, ct: ct);
-        var der = Converter.GetProp(data, "derivative");
-        return der is not null ? DerivativePPMMR.FromJson(der.Value) : null;
+        var data = await GetPpmmrAsync(accountNo, ct);
+        return PM.NonEmptyObject(data, "derivative") is { } der ? DerivativePPMMR.FromJson(der) : null;
     }
+
+    private async Task<JsonElement> GetPpmmrAsync(string accountNo, CancellationToken ct) =>
+        Converter.Payload(await _rest.GetAsync(Constants.EpAccountPpmmr, PpmmrParams(accountNo), ct: ct));
+
+    private List<KeyValuePair<string, string>> BalanceParams(string accountNo) =>
+        [new("clientId", _clientId), new("accountNo", accountNo)];
+
+    private List<KeyValuePair<string, string>> PositionsParams(string accountNo) =>
+        [new("clientId", _clientId), new("accountNo", accountNo), new("querySummary", "true")];
+
+    internal static List<KeyValuePair<string, string>> OrderBookParams(string accountNo, string fromDate, string toDate) =>
+    [
+        new("accountNo", accountNo),
+        new("from", fromDate),
+        new("to", toDate),
+        new("pageIndex", Constants.DefaultPage.ToString()),
+        new("pageSize", Constants.DefaultSize.ToString()),
+    ];
+
+    private static List<KeyValuePair<string, string>> PpmmrParams(string accountNo) => [new("accountNo", accountNo)];
 }

@@ -7,7 +7,6 @@ namespace SsiSdk.Services;
 
 public sealed class AccountService
 {
-    private static readonly Logger Log = new("ssi_sdk.services.account");
     private readonly RestClient _rest;
 
     internal AccountService(RestClient rest) => _rest = rest;
@@ -15,9 +14,15 @@ public sealed class AccountService
     public async Task<List<Account>> GetAccountInfoAsync(CancellationToken ct = default)
     {
         var data = await _rest.GetAsync(Constants.EpAccountInfo, ct: ct);
-        var arr = Converter.GetProp(data, "data");
-        if (arr is null || arr.Value.ValueKind != JsonValueKind.Array) return [];
+        return ParseAccounts(data);
+    }
 
-        return arr.Value.Deserialize<List<Account>>(Converter.CamelCase) ?? [];
+    internal static List<Account> ParseAccounts(JsonElement data)
+    {
+        if (data.ValueKind == JsonValueKind.Array)
+            return Account.FromRows(Converter.GetArray(data));
+        if (Converter.IsNoContent(data))
+            return [];
+        throw new ApiException("Unexpected response format while listing accounts");
     }
 }

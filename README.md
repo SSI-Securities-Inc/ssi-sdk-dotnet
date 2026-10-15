@@ -23,6 +23,8 @@
 - [6. Streaming realtime](#6-streaming-realtime)
 - [7. Xử lý lỗi](#7-xử-lý-lỗi)
 - [8. Cấu hình nâng cao](#8-cấu-hình-nâng-cao)
+- [9. Trading WebSocket (Experimental)](#9-trading-websocket-experimental)
+- [Thay đổi lớn ở 3.3.0](#thay-đổi-lớn-ở-330)
 - [API Reference](#api-reference)
   - [Enums / Constants](#enums--constants)
   - [Models](#models)
@@ -69,12 +71,21 @@ var config = new Config
 | `PrivateKey` | `string` | `""` | Private Key cho chữ ký số lệnh giao dịch |
 | `ApiUrl` | `string` | `"https://api.ssi.com.vn"` | Base URL của REST API |
 | `StreamingUrl` | `string` | `"wss://stream.ssi.com.vn/ws/v3"` | URL kết nối WebSocket streaming |
-| `TimeoutSeconds` | `int` | `60` | Thời gian timeout của request (giây) |
+| `TimeoutMs` | `int` | `60000` | Thời gian timeout của request (mili-giây) |
 | `MaxRetries` | `int` | `5` | Số lần thử lại tối đa khi request lỗi |
-| `RetryDelay` | `double` | `2.0` | Khoảng thời gian cơ sở giữa các lần retry (giây) |
+| `RetryDelayMs` | `int` | `2000` | Khoảng thời gian cơ sở giữa các lần retry (mili-giây) |
 | `RateLimitPerSecond` | `int` | `10` | Số request tối đa trên giây (0 = không giới hạn) |
 | `LogLevel` | `string` | `"INFO"` | Mức độ log (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
 | `Proxy` | `string?` | `null` | Cấu hình proxy nếu cần đi qua proxy |
+| `TradingApiDomain` | `string` | `"https://api.ssi.com.vn"` | Host (hoặc URL đầy đủ) của REST API giao dịch và tài khoản. Để trống = mặc định. Đọc URL đã chuẩn hoá qua `TradingApiUrl` |
+| `TradingWsDomain` | `string` | `"wss://api.ssi.com.vn/ws/v3/trading"` | Host (hoặc URL) của WebSocket giao dịch (Experimental). Đọc URL đã chuẩn hoá qua `TradingWsUrl` |
+| `UserAgent` | `string?` | `null` | User-Agent gửi lên REST và WebSocket. Null/rỗng = User-Agent mặc định của SDK |
+| `AutoReconnect` | `bool` | `true` | Tự kết nối lại streaming khi rớt |
+| `OtpPollIntervalMs` | `int` | `5000` | Mili-giây giữa các lần poll Smart OTP của `EnsureAuthenticatedAsync(transactionId: ...)` |
+| `OtpPollMaxWaitMs` | `int` | `60000` | Tổng số mili-giây chờ user approve Smart OTP |
+| `MaxBatchOrders` | `int` | `20` | Số lệnh tối đa trong một request batch (giá trị < 1 trở về 20) |
+
+> **Đã bỏ trong 3.3.0:** `Config.DeviceId`. Mỗi lệnh gửi đi luôn kèm mã máy đọc từ hệ điều hành. `ApiSecret` và `PrivateKey` không bao giờ được ghi vào log hay thông báo lỗi; nên đọc chúng từ vault hoặc biến môi trường thay vì hard-code.
 
 ---
 
@@ -205,9 +216,14 @@ Token token2 = await auth.AuthenticateAsync(transactionId: "TRANSACTION_ID");
 
 `otp` và `transactionId` loại trừ lẫn nhau — chỉ truyền một trong hai.
 
+> **Thay đổi ở 3.3.0:** `AuthenticateAsync` chỉ gọi endpoint token **một lần**, không poll. Nếu Smart OTP chưa được approve, nó ném `SmartOtpPendingException`. Muốn SDK tự poll, dùng `EnsureAuthenticatedAsync(transactionId: ...)` (mục 1.5). Smart OTP bị từ chối ném `SmartOtpRejectedException`.
+
 ### 1.3. Yêu cầu gửi mã OTP về điện thoại/email
 ```csharp
 JsonElement result = await auth.RequestOtpAsync();
+
+// Dạng có kiểu: TransactionId chỉ có với Smart OTP
+OtpResponse otpInfo = await auth.RequestOtpTypedAsync();
 ```
 
 **Tài khoản đã kích hoạt Smart OTP có 2 cách để xác thực:**
@@ -237,7 +253,7 @@ var otpResult = await auth.RequestOtpAsync();
 string transactionId = otpResult.GetProperty("data").GetProperty("transactionId").GetString()!;
 string accessToken3 = await auth.EnsureAuthenticatedAsync(
     transactionId: transactionId,
-    pollInterval: TimeSpan.FromSeconds(5),
+    pollIntervalMs: 5000,
     pollMaxRetries: 6
 );
 ```
@@ -250,6 +266,8 @@ bool isExpired = auth.TokenManager.IsTokenExpired;
 bool hasRefreshToken = auth.TokenManager.HasRefreshToken;
 bool isRefreshTokenExpired = auth.TokenManager.IsRefreshTokenExpired;
 ```
+
+Token hết hạn sớm 30 giây so với thời điểm server báo; token không rõ hạn (`ExpiresAt <= 0`) được coi là đã hết hạn. Khi phiên không thể làm mới, `EnsureAuthenticatedAsync` ném `ReauthenticationRequiredException` — lúc đó cần đăng nhập lại bằng OTP. Nhiều lời gọi refresh đồng thời chỉ tạo một request lên server.
 
 ---
 
@@ -290,8 +308,11 @@ Truy cập qua `data.MarketData` (client `DataClient`).
 | | `GetOhlc15MinuteHistoricalAsync(...)` | Nến 15 phút lịch sử |
 | | `GetOhlc1HourHistoricalAsync(...)` | Nến 1 giờ lịch sử |
 | | `GetOhlc1DayHistoricalAsync(...)` | Nến 1 ngày lịch sử |
-| | `GetOhlc1WeekHistoricalAsync(...)` | Nến 1 tuần lịch sử |
-| | `GetOhlc1MonthHistoricalAsync(...)` | Nến 1 tháng lịch sử |
+| | `GetOhlc1WeekHistoricalAsync(...)` | **Ném `ValidationException`** — server từ chối khung 1w (lỗi 400210) |
+| | `GetOhlc1MonthHistoricalAsync(...)` | **Ném `ValidationException`** — server từ chối khung 1M (lỗi 400210) |
+| **OHLC nhiều trang** | `IterOhlcAsync(...)` | `IAsyncEnumerable<OhlcData>` đi qua mọi trang |
+| | `GetOhlcAllAsync(...)` | Gom mọi trang vào một `List<OhlcData>` |
+| **Tải OHLC** | `DownloadOhlc1MinuteAsync` / `DownloadOhlc1DayAsync` | **Ném `NotImplementedException`** — server chưa có endpoint `data/file`. `DownloadData` đã bị gỡ |
 | **Chỉ số (Index)** | `GetIndexesAsync()` | Danh sách tất cả chỉ số |
 | | `GetIndexesByBoardAsync(board)` | Chỉ số theo sàn (HOSE, HNX, UPCOM) |
 | **Tổng hợp chỉ số** | `GetIndexSummaryAsync(index)` | Summary chỉ số hiện tại |
@@ -322,7 +343,16 @@ List<OhlcData> ohlcHistory = await data.MarketData.GetOhlc1DayHistoricalAsync(
     page: 1,
     size: 100
 );
+
+// Lấy toàn bộ các trang
+await foreach (OhlcData bar in data.MarketData.IterOhlcAsync("SSI", Timeframe.Day1, "2026/06/01", "2026/06/30"))
+    Console.WriteLine($"{bar.TradingDate} {bar.ClosePrice}");
 ```
+
+- `fromDate` / `toDate` chỉ có ngày sẽ được bổ sung thành `00:00:00` / `23:59:59` (server trả 400213 nếu thiếu giờ).
+- Với nến phút/giờ, `toDate` ở tương lai sẽ bị cắt về cuối ngày hôm nay.
+- `page` / `size` < 1 bị từ chối ngay tại SDK (`ValidationException`).
+- Mọi giá, khối lượng, giá trị trong model là `decimal`.
 
 ### 3.2. Danh sách chỉ số thị trường
 ```csharp
@@ -380,8 +410,8 @@ Sử dụng `PortfolioService` thông qua `TradingClient.Portfolio` để quản
 | :--- | :--- | :--- |
 | **Số dư** | `GetEquityBalanceAsync(accountNo)` | `Task<EquityAccountBalance?>` |
 | | `GetDerivativeBalanceAsync(accountNo)` | `Task<DerivativeAccountBalance?>` |
-| **Vị thế** | `GetEquityPositionsAsync(accountNo)` | `Task<List<EquityPosition>>` |
-| | `GetDerivativePositionsAsync(accountNo)` | `Task<AllDerivativePosition>` (Bao gồm cả Open và Closed) |
+| **Vị thế** | `GetEquityPositionsAsync(accountNo)` | `Task<List<EquityPosition>?>` (null khi không có vị thế) |
+| | `GetDerivativePositionsAsync(accountNo)` | `Task<AllDerivativePosition?>` (Bao gồm cả Open và Closed; null khi không có) |
 | | `GetOpenDerivativePositionsAsync(accountNo)` | `Task<List<DerivativePosition>>` |
 | | `GetClosedDerivativePositionsAsync(accountNo)` | `Task<List<DerivativePosition>>` |
 | **Sổ lệnh** | `GetTodayOrdersAsync(accountNo)` | `Task<List<Order>>` |
@@ -403,7 +433,7 @@ Console.WriteLine($"Số dư tài khoản phái sinh: {derBalance?.AccountBalanc
 ### 4.2. Vị thế nắm giữ (Positions)
 ```csharp
 // Vị thế chứng khoán cơ sở
-List<EquityPosition> positions = await trading.Portfolio.GetEquityPositionsAsync("0001234567");
+List<EquityPosition>? positions = await trading.Portfolio.GetEquityPositionsAsync("0001234567");
 
 // Chỉ vị thế mở phái sinh
 List<DerivativePosition> openDerPositions = await trading.Portfolio.GetOpenDerivativePositionsAsync("0001234568");
@@ -428,7 +458,7 @@ Truy cập thông qua `TradingService` tại `TradingClient.Trading`. Các lện
 
 | Nhóm | Phương thức | Kiểu trả về |
 | :--- | :--- | :--- |
-| **Đặt lệnh** | `PlaceOrderAsync(accountNo, symbol, side, quantity, price, orderType)` | `Task<PlaceOrderResponse>` |
+| **Đặt lệnh** | `PlaceOrderAsync(accountNo, symbol, side, quantity, price, orderType, clientRequestId?)` | `Task<PlaceOrderResponse>` |
 | | `PlaceLimitOrderAsync(accountNo, symbol, side, quantity, price)` | `Task<PlaceOrderResponse>` |
 | | `PlaceMarketOrderAsync(accountNo, symbol, side, quantity)` | `Task<PlaceOrderResponse>` |
 | | `PlaceAtoOrderAsync(accountNo, symbol, side, quantity)` | `Task<PlaceOrderResponse>` |
@@ -439,6 +469,8 @@ Truy cập thông qua `TradingService` tại `TradingClient.Trading`. Các lện
 | | `ModifyOrderQuantityByOrderIdAsync(accountNo, orderId, quantity)` | `Task<ModifyOrderResponse>` |
 | **Huỷ lệnh** | `CancelOrderAsync(accountNo, clientRequestId)` | `Task<CancelOrderResponse>` |
 | | `CancelOrderByOrderIdAsync(accountNo, orderId)` | `Task<CancelOrderResponse>` |
+| **Lệnh batch** | `PlaceBatchOrdersAsync(orders)` | `Task<BatchOrderResponse>` |
+| | `CancelBatchOrdersAsync(orders)` | `Task<BatchOrderResponse>` |
 | **Sức mua tối đa**| `GetMaxBuySellAsync(accountNo, symbol, price)` | `Task<MaxBuySellResponse>` |
 | | `GetMaxBuySellAtMarketPriceAsync(accountNo, symbol)` | `Task<MaxBuySellResponse>` |
 
@@ -460,6 +492,29 @@ PlaceOrderResponse marketOrder = await trading.Trading.PlaceMarketOrderAsync(
     side: OrderSide.Sell,
     quantity: 100
 );
+```
+
+Giá lệnh là `decimal` (không dùng `double`). Lệnh ATO/ATC/MTL/MP gửi giá `"0"`; lệnh LO thiếu giá bị từ chối ngay tại SDK.
+
+**Idempotency:** `clientRequestId` là khoá chống trùng lệnh, SDK tự sinh khi bạn không truyền. Khi retry một lệnh sau lỗi mạng, hãy truyền lại **đúng** `clientRequestId` cũ để server nhận ra lệnh trùng (`DuplicateRequestException`). SDK chỉ tự retry request `GET`; `POST`/`PUT`/`DELETE` (đặt, sửa, huỷ lệnh, FCO, OTP) chỉ gửi đúng một lần.
+
+### 5.1.1. Lệnh batch
+
+Đặt hoặc huỷ nhiều lệnh trong một request, ký trên toàn bộ body. Tối đa `Config.MaxBatchOrders` lệnh (mặc định 20); chỉ cần một lệnh sai là cả batch bị từ chối trước khi gửi.
+
+```csharp
+BatchOrderResponse placed = await trading.Trading.PlaceBatchOrdersAsync(new[]
+{
+    new BatchPlaceOrderItem("0001234567", "SSI", OrderSide.Buy, 100, 35000m, OrderType.LO),
+    new BatchPlaceOrderItem("0001234567", "FPT", OrderSide.Buy, 200, 120000m, OrderType.LO),
+});
+foreach (var r in placed.Results)
+    Console.WriteLine($"{r.ClientRequestId}: {(r.Success ? r.OrderId : r.ErrorMessage)}");
+
+BatchOrderResponse cancelled = await trading.Trading.CancelBatchOrdersAsync(new[]
+{
+    new BatchCancelOrderItem("0001234567", OrderId: "exchange-order-id"),
+});
 ```
 
 ### 5.2. Sửa lệnh
@@ -509,45 +564,54 @@ string toDate = IdGenerator.EndOfDay();         // "YYYY/MM/DD 23:59:59"
 
 // 1. Đặt lệnh GTD (Good Till Date)
 var gtd = await trading.Trading.PlaceFcoGtdAsync(
-    accountNo, "SSI", OrderSide.Buy, 100, 25000, 0.5, fromDate, toDate
+    accountNo, "SSI", OrderSide.Buy, 100, 25000m, 0.5m, fromDate, toDate
 );
 
 // 2. Đặt lệnh Stop Market
 var stop = await trading.Trading.PlaceFcoStopAsync(
-    accountNo, "SSI", OrderSide.Sell, 100, 24000, FCOOperator.LesserOrEqual, fromDate, toDate
+    accountNo, "SSI", OrderSide.Sell, 100, 24000m, FCOOperator.LesserOrEqual, fromDate, toDate
 );
 
 // 3. Đặt lệnh Stop Limit
 var stopLimit = await trading.Trading.PlaceFcoStopLimitAsync(
-    accountNo, "SSI", OrderSide.Buy, 100, 25500, 0.5, 25000, FCOOperator.GreaterOrEqual, fromDate, toDate
+    accountNo, "SSI", OrderSide.Buy, 100, 25500m, 0.5m, 25000m, FCOOperator.GreaterOrEqual, fromDate, toDate
 );
 
 // 4. Đặt lệnh Trailing Stop
 var trailing = await trading.Trading.PlaceFcoTrailingStopAsync(
-    accountNo, "SSI", OrderSide.Buy, 100, 26000, 1000, fromDate, toDate
+    accountNo, "SSI", OrderSide.Buy, 100, 26000m, 1000m, fromDate, toDate
 );
 
 // 5. Đặt lệnh Trailing Stop Limit
 var trailingLimit = await trading.Trading.PlaceFcoTrailingStopLimitAsync(
-    accountNo, "SSI", OrderSide.Buy, 100, 26000, 1000, 0.5, fromDate, toDate
+    accountNo, "SSI", OrderSide.Buy, 100, 26000m, 1000m, 0.5m, fromDate, toDate
 );
 
 // 6. Đặt lệnh OCO (One-Cancels-the-Other)
 var oco = await trading.Trading.PlaceFcoOcoAsync(
-    accountNo, "SSI", OrderSide.Sell, 100, 30000, 24000, OrderType.MTL, OrderType.MTL, 0.5, 0.5, fromDate, toDate
+    accountNo, "SSI", OrderSide.Sell, 100, 30000m, 24000m, OrderType.MTL, OrderType.MTL, 0.5m, 0.5m, fromDate, toDate
 );
 
 // 7. Đặt lệnh Bull Bear
 var bullBear = await trading.Trading.PlaceFcoBullBearAsync(
-    accountNo, "SSI", OrderSide.Buy, 1000, 100.5, 0.5, 30, 20, 30, 10, 0.1, 0, fromDate, toDate
+    accountNo, "SSI", OrderSide.Buy, 1000, 100.5m, 0.5m, 30m, 20m, 30m, 10m, 0.1m, 0m, fromDate, toDate
 );
 
-// 8. Tra cứu danh sách lệnh FCO
+// 8. Tra cứu danh sách lệnh FCO (pageIndex/pageSize là int?, null = mặc định của server)
 var fcoList = await trading.Trading.GetFcoByAccountNoAsync(accountNo, 1, 10);
 
-// 9. Hủy lệnh FCO
+// 9. Lịch sử trạng thái của một lệnh FCO
+var history = await trading.Trading.GetFcoStatusHistoryAsync(gtd.FCOID);
+
+// 10. Hủy lệnh FCO
 var cancelRes = await trading.Trading.CancelFcoAsync(gtd.FCOID);
 ```
+
+Lưu ý FCO ở 3.3.0:
+- Giá FCO có kiểu `FcoPrice`: truyền `decimal` hoặc từ khoá thị trường (`"MTL"`, `"ATO"`, `"ATC"`, `"MP"` — gửi đi dưới dạng giá `"0"`).
+- Ngày phải theo dạng `yyyy/MM/dd HH:mm:ss`, `fromDate <= toDate`, khoảng không quá 31 ngày.
+- Mọi `PlaceFco*Async` và `CancelFcoAsync` nhận thêm tham số `code` (OTP) tuỳ chọn.
+- `GetFcoByStatusAsync` có hai overload: một trạng thái (`string`) hoặc nhiều trạng thái (`IReadOnlyCollection<string>`). `GetFcoByDateAsync` nhận cặp `fromDate`/`toDate`.
 
 | Method | Mô tả |
 | :--- | :--- |
@@ -565,6 +629,7 @@ var cancelRes = await trading.Trading.CancelFcoAsync(gtd.FCOID);
 | `GetFcoByDateAsync(...)` | Tra cứu FCO lọc theo khoảng ngày |
 | `GetFcoByIdAsync(...)` | Lấy thông tin 1 lệnh FCO theo ID |
 | `GetFcoOrderBookAsync(...)` | Lấy lịch sử thực thi (Order Book) của FCO |
+| `GetFcoStatusHistoryAsync(fcoId)` | Lấy lịch sử đổi trạng thái của FCO |
 
 
 ---
@@ -579,8 +644,8 @@ Sử dụng `StreamClient` để đăng ký kết nối và nhận luồng dữ 
 | :--- | :--- | :--- |
 | **Kết nối** | `ConnectAsync()` | Thiết lập kết nối WebSocket |
 | | `Disconnect()` | Ngắt kết nối và đóng loop |
-| | `WaitAsync(timeout)` | Giữ thread chạy liên tục để đợi nhận dữ liệu |
-| **Heartbeat** | `PingAsync(intervalSeconds)` | Ping để kiểm tra và duy trì kết nối |
+| | `WaitAsync(timeoutMs)` | Giữ thread chạy liên tục để đợi nhận dữ liệu |
+| **Heartbeat** | `PingAsync(intervalMs)` | Ping để kiểm tra và duy trì kết nối |
 | | `StopPingLoop()` | Dừng ping loop tự động |
 | **Đăng ký mã** | `SubscribeSymbolAsync(symbols)` | Đăng ký nhận toàn bộ (Trade, Quote, Room) cho danh sách mã |
 | | `SubscribeSymbolTradeAsync(symbols)` | Chỉ đăng ký khớp lệnh realtime |
@@ -589,15 +654,34 @@ Sử dụng `StreamClient` để đăng ký kết nối và nhận luồng dữ 
 | | `SubscribeSymbolPutThroughAsync(symbols)`| Chỉ đăng ký lệnh thỏa thuận |
 | | `SubscribeSymbolOddLotAsync(symbols)` | Chỉ đăng ký lô lẻ |
 | | `SubscribeSymbolOhlcvAsync(symbols, interval)` | Đăng ký nến realtime theo timeframe |
-| **Đăng ký sàn/chỉ số**| `SubscribeBoardAsync(boards)` | Đăng ký nhận toàn bộ dữ liệu theo sàn |
-| | `SubscribeIndexAsync(indices)` | Đăng ký nhận toàn bộ dữ liệu theo chỉ số |
+| **Đăng ký sàn/chỉ số**| `SubscribeBoardAsync(boards)` | Đăng ký nhận toàn bộ dữ liệu theo sàn (gửi `trade.<sàn>@*`, `quote.<sàn>@*`, `room.<sàn>@*`) |
+| | `SubscribeIndexAsync(indices)` | Đăng ký nhận toàn bộ dữ liệu theo chỉ số (gửi `trade.<chỉ số>@*`, `quote.<chỉ số>@*`, `room.<chỉ số>@*`) |
 | **Đăng ký tài khoản**| `SubscribeOrderStatusAsync(accountNo)` | Lắng nghe sự kiện lệnh (đặt, sửa, khớp, hủy) |
 | | `SubscribePortfolioAsync(accountNo)` | Lắng nghe sự kiện thay đổi tài sản/danh mục |
+| | `SubscribeFcoOrderStatusAsync(accountNo)` | Lắng nghe sự kiện lệnh FCO |
+| **Thị trường / chỉ số** | `SubscribeMarketAsync(symbols)`, `SubscribeMarketFlagAsync()` | Master data và cờ phiên |
+| | `SubscribeIndexTradeAsync(indices, interval?)`, `SubscribeIndexSummaryAsync(indices)` | Tick chỉ số và tổng hợp chỉ số |
+| **Huỷ đăng ký** | `Unsubscribe...Async(...)` tương ứng từng hàm Subscribe | Gồm cả `UnsubscribeOrderStatusAsync`, `UnsubscribePortfolioAsync` |
+| | `UnsubscribeAllAsync()` | Huỷ mọi đăng ký và xoá sổ đăng ký dùng để resubscribe |
+| **Trạng thái** | `ListSubscriptionAsync(timeoutMs)` | Các topic server đang giữ cho kết nối này |
+| | `IsConnected`, `ReconnectCount`, `LastError` | Trạng thái kết nối |
 
 #### Callbacks hỗ trợ cấu hình qua `stream.Streaming`:
 - `SetOnData(Action<object> callback)`: Nhận các thông báo dữ liệu thị trường đã phân tích (như `TradeMessage`, `QuoteMessage`, `IntervalMessage`, v.v.)
 - `SetOnTrading(Action<object> callback)`: Nhận thông báo sự kiện giao dịch tài khoản (`OrderStatusMessage` hoặc `PortfolioMessage`).
 - `SetOnHeartbeat(Action<HeartbeatMessage> callback)`: Nhận sự kiện phản hồi Ping/Pong duy trì kết nối.
+
+Callback có kiểu cụ thể (gán trực tiếp thuộc tính; `OnData`/`OnTrading` vẫn nhận mọi thông điệp):
+- `OnMarketFlag` (`MarketFlagMessage`), `OnIndexSummary` (`IndexSummaryMessage`), `OnOrder` (`OrderStatusMessage`), `OnOrderMatch` (`OrderMatchMessage`), `OnPortfolio` (`PortfolioMessage`).
+- `OnConnection` (`ConnectionEvent`): báo connected / reconnected / disconnected / failed.
+
+Callback là `Action<T>` thường (không `await` được) và chạy trên luồng nhận dữ liệu — giữ cho ngắn, việc nặng hãy đẩy sang `Channel`/queue. Frame SDK không đọc được sẽ bị bỏ qua; handler của bạn ném lỗi chỉ được ghi log (đã che thông tin), không làm sập kết nối.
+
+#### Tự kết nối lại (reconnect)
+
+Kết nối streaming được giám sát: khi rớt, SDK tự kết nối lại với backoff luỹ thừa có giới hạn và jitter, lấy token mới ở mỗi lần kết nối, kết nối lại chủ động trước khi token hết hạn, và **tự đăng ký lại** mọi topic đã subscribe. Server từ chối bằng frame `{"code","msg"}`: 401/403 thì làm mới token đúng một lần, 429 thì chờ ít nhất 30 giây. Tắt bằng `Config.AutoReconnect = false`.
+
+Yêu cầu subscribe/unsubscribe lớn được tự tách thành các frame dưới 4000 byte. Topic được kiểm tra trước khi gửi và đổi sang chữ hoa (số tài khoản giữ nguyên). Topic interval (`SubscribeSymbolOhlcvAsync`, `SubscribeIndexTradeAsync`) chỉ nhận `tick`, `1m`, `5m`. Mỗi topic chỉ có một bộ lọc (`*`, một mã hoặc khoảng `A-B`); danh sách phân tách bằng dấu phẩy (`VNM,FPT`) bị từ chối với `ValidationException` — truyền nhiều mã thay vì ghép chuỗi. Interval `*` (`Topic.StreamIntervalAll`) chỉ dùng cho `trade`/`quote`/`room`/`put`/`oddlot` với đúng một mã chỉ số hoặc sàn (ví dụ `trade.VN30@*`).
 
 ### 6.1. Thiết lập Callback và kết nối
 ```csharp
@@ -662,13 +746,25 @@ catch (ApiException ex)
 }
 catch (RateLimitException ex)
 {
-    Console.WriteLine($"Bị giới hạn tần suất. Thử lại sau {ex.RetryAfter} giây.");
+    Console.WriteLine($"Bị giới hạn tần suất. Thử lại sau {ex.RetryAfterMs} ms.");
 }
 catch (SsiException ex)
 {
     Console.WriteLine($"Lỗi SDK SSI: {ex.Message}");
 }
 ```
+
+Các exception thêm ở 3.3.0:
+
+| Exception | Khi nào |
+| :--- | :--- |
+| `SmartOtpPendingException` | `AuthenticateAsync(transactionId: ...)` khi user chưa approve Smart OTP |
+| `SmartOtpRejectedException` | Smart OTP bị từ chối |
+| `ReauthenticationRequiredException` | Phiên không thể làm mới, cần đăng nhập lại bằng OTP |
+| `DuplicateRequestException` | Server báo trùng `clientRequestId` |
+| `RateLimitException` | Có thêm `StatusCode`, `RetryAfterMs`, `Limit`, `Remaining`, `Reset` |
+
+`ApiException.Code` giờ là **mã lỗi của server** khi body có mã (mã HTTP vẫn nằm ở `StatusCode`); enum `ServerErrorCode` liệt kê các mã đã biết. HTTP 200 nhưng body có `code` khác 200/204 cũng ném `ApiException`. Nội dung body giữ trong exception (`ResponseBody`) đã được che thông tin nhạy cảm.
 
 ---
 
@@ -682,14 +778,62 @@ var config = new Config
     ClientId = "YOUR_CLIENT_ID",
     ApiKey = "YOUR_API_KEY",
     ApiSecret = "YOUR_API_SECRET",
-    TimeoutSeconds = 30,
+    TimeoutMs = 30000,
     MaxRetries = 3,
-    RetryDelay = 1.5,
+    RetryDelayMs = 1500,
     RateLimitPerSecond = 5,
     LogLevel = "DEBUG",
     Proxy = "http://127.0.0.1:8888" // Cấu hình Proxy
 };
 ```
+
+**Giới hạn tần suất (rate limit).** REST client đọc header `X-RateLimit-*` của server: `X-RateLimit-Limit` hạ tốc độ gửi (không bao giờ vượt `RateLimitPerSecond`; `0` vẫn là không giới hạn), `X-RateLimit-Remaining: 0` thì nghỉ 1 giây, và `429` trên request `GET` được chờ rồi thử lại (theo `Retry-After`, nếu không có thì 1 giây nhân đôi; tối đa 3 lần, không chờ quá 30 giây) trước khi ném `RateLimitException`. Lệnh và mọi `POST`/`PUT`/`DELETE` không bao giờ bị gửi lại. Số liệu gần nhất đọc qua `auth.RateLimit`.
+
+**Bảo mật log.** SDK chỉ log method và path của request; không log body, chữ ký, header `Authorization`, frame WebSocket thô hay query string. `Config.ToString()`, `Token` và các model request che `ApiSecret`, `PrivateKey`, token, OTP, `TransactionId`. Khi tự log trong code của bạn, cũng đừng ghi token, OTP, số tài khoản hay chữ ký.
+
+> **Nếu bạn đang dùng bản 3.2.x trở xuống:** các bản cũ có ghi Bearer token, body request và chữ ký vào log. Hãy thu hồi/xoay (rotate) mọi token từng bị ghi log và rà soát thời hạn lưu giữ các file log đó.
+
+---
+
+## 9. Trading WebSocket (Experimental)
+
+Namespace `SsiSdk.Experimental`. **Thử nghiệm: API có thể thay đổi ở bất kỳ bản phát hành nào.** Gửi lệnh/FCO đã ký và truy vấn qua `Config.TradingWsUrl`; `TradingClient` (REST) và `StreamClient` không dùng nó. Mặc định hãy dùng `TradingClient`.
+
+```csharp
+using SsiSdk.Experimental;
+
+await using TradingWsService ws = await TradingWs.ConnectAsync(auth);
+
+var placed = await ws.PlaceOrderAsync("0001234567", "SSI", OrderSide.Buy, 100, 35000m, OrderType.LO);
+var position = await ws.QueryPositionAsync("0001234567");
+
+ws.Client.OnEvent = frame => Console.WriteLine("event");
+await ws.SubscribeOrderEventsAsync("0001234567");   // đúng một tài khoản, không dùng * hay dấu phẩy
+```
+
+- Lệnh làm thay đổi trạng thái (`order.place/amend/cancel/batchnew/batchcancel`, `fco.place/cancel`) bắt buộc có `Config.PrivateKey`; chữ ký tính trên đúng chuỗi `params`. Lệnh chỉ đọc không ký.
+- `TradingWsOptions.SignatureEncoding` mặc định `auto`: thử base64 trước; nếu server từ chối chữ ký (401006/401008/401013, nghĩa là lệnh chưa được thực thi) thì gửi lại đúng một lần ở dạng hex và ghi nhớ.
+- Frame `{"code","msg"}` server gửi sau khi upgrade (ví dụ 429) làm `ConnectAsync` ném `TradingWsError`. Khi `remaining == 0`, lệnh kế tiếp chờ `resetMs` (tối đa 2 giây). Ping giữ kết nối mỗi 30 giây.
+- Không tự reconnect: sau khi rớt, tạo `TradingWsService` mới. Chỉ chấp nhận `wss://` (từ chối `ws://`).
+- Chưa có tương đương `request_stream`/`stream`/`next_response` của bản Python (phản hồi nhiều frame): chỉ có `RequestAsync` lấy frame đầu tiên.
+
+---
+
+## Thay đổi lớn ở 3.3.0
+
+Danh sách đầy đủ trong [CHANGELOG.md](CHANGELOG.md); danh sách phương thức trong [API_METHODS.md](API_METHODS.md). Những điểm có thể làm vỡ code đang chạy:
+
+- Mọi giá, khối lượng, giá trị trong model, request và streaming là `decimal` (trước đây `double`). Viết literal là `35000m`.
+- `AuthenticateAsync` gọi một lần, không poll (Smart OTP chưa approve ném `SmartOtpPendingException`). Dùng `EnsureAuthenticatedAsync(transactionId: ...)` để poll.
+- `clientRequestId` chuyển xuống cuối danh sách tham số, tuỳ chọn.
+- Chỉ request `GET` được retry; `POST`/`PUT`/`DELETE` gửi đúng một lần.
+- `ApiException.Code` là mã lỗi server; token hết hạn sớm 30 giây, token không rõ hạn bị coi là hết hạn.
+- `Config.DeviceId` bị gỡ; `Config.MaxBatchOrders` mặc định 20.
+- `Account.AccountType` có thể null; `Order.OsQuantity` luôn null; `SecuritiesInfo.LotSize`/`ListedShares` nullable; bỏ fallback `availableCash`/`withdrawal`.
+- `CashWithdrawableSSI/VSDC` đổi tên thành `WithdrawableSSI/VSDC` (tên cũ còn lại dạng `[Obsolete]`); `MaxBuySellResponse.PurchasePower` -> `PurchasingPower`; `OrderStatusMessage.ModifyTime` -> `ModifiedTime`.
+- `FcoPrice` thay cho giá dạng chuỗi ở FCO; danh sách FCO nhận `int?` phân trang; `GetFcoByStatusAsync` có overload một/nhiều trạng thái.
+- `GetOhlc1WeekHistoricalAsync`/`GetOhlc1MonthHistoricalAsync` ném `ValidationException`; `DownloadOhlc1*` ném `NotImplementedException`; `DownloadData` bị gỡ.
+- Streaming được viết lại (reconnect, resubscribe, callback có kiểu); `OrderStatusMessage.Price` là `decimal?`; topic interval chỉ nhận `tick`/`1m`/`5m`.
 
 ---
 
@@ -711,8 +855,8 @@ Các lớp chứa hằng số (constants) được cung cấp trong namespace `S
 - `Timeframe.Minute15` = `"15m"`
 - `Timeframe.Hour1` = `"1h"`
 - `Timeframe.Day1` = `"1d"`
-- `Timeframe.Week1` = `"1w"`
-- `Timeframe.Month1` = `"1M"`
+- `Timeframe.Week1` = `"1w"` (server từ chối, SDK ném `ValidationException`)
+- `Timeframe.Month1` = `"1M"` (server từ chối, SDK ném `ValidationException`)
 
 #### `OrderSide`
 - `OrderSide.Buy` = `"B"`
@@ -788,12 +932,12 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | :--- | :--- | :--- |
 | `Symbol` | `string` | Mã chứng khoán |
 | `TradingDate` | `string` | Ngày giao dịch |
-| `OpenPrice` | `double` | Giá mở cửa |
-| `HighPrice` | `double` | Giá cao nhất |
-| `LowPrice` | `double` | Giá thấp nhất |
-| `ClosePrice` | `double` | Giá đóng cửa |
+| `OpenPrice` | `decimal` | Giá mở cửa |
+| `HighPrice` | `decimal` | Giá cao nhất |
+| `LowPrice` | `decimal` | Giá thấp nhất |
+| `ClosePrice` | `decimal` | Giá đóng cửa |
 | `Volume` | `int` | Khối lượng giao dịch |
-| `Value` | `double` | Giá trị giao dịch |
+| `Value` | `decimal` | Giá trị giao dịch |
 
 #### `MarketIndexes`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -809,23 +953,23 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Board` | `string` | Sàn giao dịch |
 | `TradingDate` | `string` | Ngày giao dịch |
 | `TotalTrade` | `int` | Tổng số lượng giao dịch |
-| `TotalTradeValue` | `double` | Tổng giá trị giao dịch |
+| `TotalTradeValue` | `decimal` | Tổng giá trị giao dịch |
 | `TotalMatch` | `int` | Tổng khối lượng khớp lệnh |
-| `TotalMatchValue` | `double` | Tổng giá trị khớp lệnh |
+| `TotalMatchValue` | `decimal` | Tổng giá trị khớp lệnh |
 | `TotalDeal` | `int` | Tổng khối lượng thỏa thuận |
-| `TotalDealValue` | `double` | Tổng giá trị thỏa thuận |
-| `IndexChange` | `double` | Điểm thay đổi |
-| `IndexChangePercent` | `double` | Tỷ lệ phần trăm thay đổi |
-| `IndexValue` | `double` | Điểm chỉ số hiện tại |
+| `TotalDealValue` | `decimal` | Tổng giá trị thỏa thuận |
+| `IndexChange` | `decimal` | Điểm thay đổi |
+| `IndexChangePercent` | `decimal` | Tỷ lệ phần trăm thay đổi |
+| `IndexValue` | `decimal` | Điểm chỉ số hiện tại |
 | `TotalAdvanceStock` | `int` | Số mã tăng |
 | `TotalDeclineStock` | `int` | Số mã giảm |
 | `TotalSteadyStock` | `int` | Số mã đứng giá |
 | `TotalCeilingStock` | `int` | Số mã tăng trần |
 | `TotalFloorStock` | `int` | Số mã giảm sàn |
 | `TotalPropBuy` | `int` | Khối lượng mua tự doanh |
-| `TotalPropBuyValue` | `double` | Giá trị mua tự doanh |
+| `TotalPropBuyValue` | `decimal` | Giá trị mua tự doanh |
 | `TotalPropSell` | `int` | Khối lượng bán tự doanh |
-| `TotalPropSellValue` | `double` | Giá trị bán tự doanh |
+| `TotalPropSellValue` | `decimal` | Giá trị bán tự doanh |
 
 #### `SecuritiesInfo`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -840,84 +984,84 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `FirstTradingDate` | `string?` | Ngày bắt đầu giao dịch |
 | `LastTradingDate` | `string?` | Ngày cuối cùng giao dịch |
 | `CwUnderlyingSymbol` | `string?` | Mã chứng khoán cơ sở của chứng quyền |
-| `CwExercisePrice` | `double?` | Giá thực hiện chứng quyền |
-| `CwExecutionRatio` | `double?` | Tỷ lệ chuyển đổi chứng quyền |
+| `CwExercisePrice` | `decimal?` | Giá thực hiện chứng quyền |
+| `CwExecutionRatio` | `decimal?` | Tỷ lệ chuyển đổi chứng quyền |
 | `ListedShares` | `int` | Số lượng cổ phiếu niêm yết |
 | `IcbCode` | `string?` | Mã ngành ICB |
 | `IcbName` | `string?` | Tên ngành ICB |
-| `IIndex` | `double?` | Chỉ số I |
-| `INav` | `double?` | Giá trị tài sản ròng NAV |
-| `OpenInterest` | `double?` | Khối lượng mở (phái sinh) |
-| `SettlementPrice` | `double?` | Giá thanh toán (phái sinh) |
+| `IIndex` | `decimal?` | Chỉ số I |
+| `INav` | `decimal?` | Giá trị tài sản ròng NAV |
+| `OpenInterest` | `decimal?` | Khối lượng mở (phái sinh) |
+| `SettlementPrice` | `decimal?` | Giá thanh toán (phái sinh) |
 
 #### `SecuritiesSummary`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
 | :--- | :--- | :--- |
 | `Symbol` | `string` | Mã chứng khoán |
 | `TradingDate` | `string` | Ngày giao dịch |
-| `PriceChange` | `double` | Thay đổi giá |
-| `PriceChangePercent` | `double` | % thay đổi giá |
-| `OpenPrice` | `double` | Giá mở cửa |
-| `HighPrice` | `double` | Giá cao nhất |
-| `LowPrice` | `double` | Giá thấp nhất |
-| `ClosePrice` | `double` | Giá đóng cửa |
-| `AveragePrice` | `double` | Giá trung bình |
+| `PriceChange` | `decimal` | Thay đổi giá |
+| `PriceChangePercent` | `decimal` | % thay đổi giá |
+| `OpenPrice` | `decimal` | Giá mở cửa |
+| `HighPrice` | `decimal` | Giá cao nhất |
+| `LowPrice` | `decimal` | Giá thấp nhất |
+| `ClosePrice` | `decimal` | Giá đóng cửa |
+| `AveragePrice` | `decimal` | Giá trung bình |
 | `TotalMatch` | `int` | Tổng khối lượng khớp lệnh |
-| `TotalMatchValue` | `double` | Tổng giá trị khớp lệnh |
+| `TotalMatchValue` | `decimal` | Tổng giá trị khớp lệnh |
 | `TotalBuy` | `int` | Tổng khối lượng mua |
-| `TotalTradeBuy` | `double` | Tổng giá trị mua |
+| `TotalTradeBuy` | `decimal` | Tổng giá trị mua |
 | `TotalSell` | `int` | Tổng khối lượng bán |
-| `TotalTradeSell` | `double` | Tổng giá trị bán |
+| `TotalTradeSell` | `decimal` | Tổng giá trị bán |
 | `TotalForeignBuy` | `int` | KL mua khối ngoại |
-| `TotalForeignBuyValue` | `double` | GT mua khối ngoại |
+| `TotalForeignBuyValue` | `decimal` | GT mua khối ngoại |
 | `TotalForeignSell` | `int` | KL bán khối ngoại |
-| `TotalForeignSellValue` | `double` | GT bán khối ngoại |
+| `TotalForeignSellValue` | `decimal` | GT bán khối ngoại |
 | `RemainForeignRoom` | `int` | Room ngoại còn lại |
 | `TotalForeignRoom` | `int` | Tổng room ngoại |
 | `TotalDeal` | `int` | KL giao dịch thỏa thuận |
-| `TotalDealValue` | `double` | GT giao dịch thỏa thuận |
-| `OpenInterest` | `double` | Khối lượng mở (phái sinh) |
-| `SettlementPrice` | `double` | Giá thanh toán (phái sinh) |
+| `TotalDealValue` | `decimal` | GT giao dịch thỏa thuận |
+| `OpenInterest` | `decimal` | Khối lượng mở (phái sinh) |
+| `SettlementPrice` | `decimal` | Giá thanh toán (phái sinh) |
 
 #### `EquityAccountBalance`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
 | :--- | :--- | :--- |
 | `AccountNo` | `string` | Số tài khoản |
-| `AccountBalance` | `double` | Số dư tài khoản |
-| `TotalDebt` | `double` | Tổng dư nợ |
-| `InterestLoan` | `double` | Tiền lãi vay phát sinh |
-| `OverdueFeeLoan` | `double` | Phí vay quá hạn |
-| `Withdrawable` | `double` | Tiền mặt có thể rút |
-| `OnHoldCash` | `double` | Tiền đang tạm giữ |
-| `SellUnmatched` | `double` | Giá trị lệnh bán chưa khớp |
-| `SellT0` / `SellT1` / `SellT2` | `double` | Tiền bán chờ về T+0, T+1, T+2 |
-| `BuyUnmatched` | `double` | Giá trị lệnh mua chưa khớp |
-| `BuyT0` / `BuyT1` / `BuyT2` | `double` | Tiền mua chờ thanh toán T+0, T+1, T+2 |
-| `AdvanceCashT0` / `AdvanceCashT1` | `double` | Giá trị ứng trước tiền bán T+0, T+1 |
-| `HoldSubscription` | `double` | Tiền phong toả đăng ký quyền mua |
-| `Dividend` | `double` | Cổ tức chờ về/đã ghi nhận |
+| `AccountBalance` | `decimal` | Số dư tài khoản |
+| `TotalDebt` | `decimal` | Tổng dư nợ |
+| `InterestLoan` | `decimal` | Tiền lãi vay phát sinh |
+| `OverdueFeeLoan` | `decimal` | Phí vay quá hạn |
+| `Withdrawable` | `decimal` | Tiền mặt có thể rút |
+| `OnHoldCash` | `decimal` | Tiền đang tạm giữ |
+| `SellUnmatched` | `decimal` | Giá trị lệnh bán chưa khớp |
+| `SellT0` / `SellT1` / `SellT2` | `decimal` | Tiền bán chờ về T+0, T+1, T+2 |
+| `BuyUnmatched` | `decimal` | Giá trị lệnh mua chưa khớp |
+| `BuyT0` / `BuyT1` / `BuyT2` | `decimal` | Tiền mua chờ thanh toán T+0, T+1, T+2 |
+| `AdvanceCashT0` / `AdvanceCashT1` | `decimal` | Giá trị ứng trước tiền bán T+0, T+1 |
+| `HoldSubscription` | `decimal` | Tiền phong toả đăng ký quyền mua |
+| `Dividend` | `decimal` | Cổ tức chờ về/đã ghi nhận |
 
 #### `DerivativeAccountBalance`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
 | :--- | :--- | :--- |
 | `AccountNo` | `string` | Số tài khoản |
-| `AccountBalance` | `double` | Số dư tài khoản |
-| `Fee` | `double` | Phí giao dịch |
-| `Commission` | `double` | Hoa hồng |
-| `Interest` | `double` | Lãi vay phát sinh |
-| `ExtInterest` | `double` | Lãi ngoài |
-| `Loan` | `double` | Số tiền vay |
-| `DeliveryAmount` | `double` | Tiền thanh toán chuyển giao |
-| `FloatingPL` | `double` | Lãi/lỗ tạm tính |
-| `TradingPL` | `double` | Lãi/lỗ thực tế |
-| `TotalPL` | `double` | Tổng lãi/lỗ |
-| `Withdrawable` | `double` | Số tiền có thể rút |
-| `CashSSI` | `double` | Tiền đang lưu giữ tại SSI |
-| `ValidNonCashSSI` | `double` | Giá trị tài sản thế chấp phi tiền mặt tại SSI |
-| `CashWithdrawableSSI` | `double` | Tiền mặt có thể rút tại SSI |
-| `CashVSDC` | `double` | Tiền mặt lưu ký tại VSDC |
-| `ValidNonCashVSDC` | `double` | Giá trị tài sản phi tiền mặt thế chấp tại VSDC |
-| `CashWithdrawableVSDC` | `double` | Tiền mặt có thể rút từ VSDC |
+| `AccountBalance` | `decimal` | Số dư tài khoản |
+| `Fee` | `decimal` | Phí giao dịch |
+| `Commission` | `decimal` | Hoa hồng |
+| `Interest` | `decimal` | Lãi vay phát sinh |
+| `ExtInterest` | `decimal` | Lãi ngoài |
+| `Loan` | `decimal` | Số tiền vay |
+| `DeliveryAmount` | `decimal` | Tiền thanh toán chuyển giao |
+| `FloatingPL` | `decimal` | Lãi/lỗ tạm tính |
+| `TradingPL` | `decimal` | Lãi/lỗ thực tế |
+| `TotalPL` | `decimal` | Tổng lãi/lỗ |
+| `Withdrawable` | `decimal` | Số tiền có thể rút |
+| `CashSSI` | `decimal` | Tiền đang lưu giữ tại SSI |
+| `ValidNonCashSSI` | `decimal` | Giá trị tài sản thế chấp phi tiền mặt tại SSI |
+| `WithdrawableSSI` | `decimal` | Tiền mặt có thể rút tại SSI (`CashWithdrawableSSI` là alias `[Obsolete]`) |
+| `CashVSDC` | `decimal` | Tiền mặt lưu ký tại VSDC |
+| `ValidNonCashVSDC` | `decimal` | Giá trị tài sản phi tiền mặt thế chấp tại VSDC |
+| `WithdrawableVSDC` | `decimal` | Tiền mặt có thể rút từ VSDC (`CashWithdrawableVSDC` là alias `[Obsolete]`) |
 
 #### `EquityPosition`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -930,7 +1074,8 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `BuyingQuantity` / `BoughtQuantity` | `int` | Khối lượng đang mua / đã mua trong ngày |
 | `SellingQuantity` / `SoldQuantity` | `int` | Khối lượng đang bán / đã bán trong ngày |
 | `T1SellQuantity` / `T2SellQuantity` | `int` | Khối lượng bán khớp chờ về T+1, T+2 |
-| `CostPrice` | `double` | Giá vốn bình quân |
+| `T1BuyQuantity` / `T2BuyQuantity` | `int` | Khối lượng mua chờ về T+1, T+2 (server trả `t1BuyQuantity`/`t2BuyQuantity`) |
+| `CostPrice` | `decimal` | Giá vốn bình quân |
 | `MortgageQuantity` | `int` | Khối lượng cầm cố |
 | `SellableQuantity` | `int` | Khối lượng có thể đặt bán |
 | `RestrictedQuantity` | `int` | Khối lượng hạn chế chuyển nhượng |
@@ -943,11 +1088,11 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Long` | `int` | Vị thế Mua (Long) |
 | `Short` | `int` | Vị thế Bán (Short) |
 | `Net` | `int` | Vị thế ròng |
-| `BidAvgPrice` | `double` | Giá mua trung bình |
-| `AskAvgPrice` | `double` | Giá bán trung bình |
-| `TradePrice` | `double` | Giá khớp giao dịch hiện tại |
-| `FloatingPL` | `double` | Lãi/lỗ tạm tính |
-| `TradingPL` | `double` | Lãi/lỗ thực tế |
+| `BidAvgPrice` | `decimal` | Giá mua trung bình |
+| `AskAvgPrice` | `decimal` | Giá bán trung bình |
+| `TradePrice` | `decimal` | Giá khớp giao dịch hiện tại |
+| `FloatingPL` | `decimal` | Lãi/lỗ tạm tính |
+| `TradingPL` | `decimal` | Lãi/lỗ thực tế |
 
 #### `Order`
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
@@ -958,8 +1103,8 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Symbol` | `string` | Mã chứng khoán |
 | `Side` | `string` | Chiều giao dịch (`"B"` hoặc `"S"`) |
 | `OrderType` | `string` | Loại lệnh (`"LO"`, `"MTL"`, v.v.) |
-| `Price` | `double` | Giá đặt lệnh |
-| `AvgPrice` | `double` | Giá khớp trung bình |
+| `Price` | `decimal` | Giá đặt lệnh |
+| `AvgPrice` | `decimal` | Giá khớp trung bình |
 | `Quantity` | `int` | Khối lượng đặt |
 | `OsQuantity` | `int` | Khối lượng còn lại chưa khớp |
 | `FilledQuantity` | `int` | Khối lượng đã khớp thành công |
@@ -993,7 +1138,7 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Type` | `string` | `"trade"` |
 | `TradingTime` | `string` | Thời gian giao dịch phát sinh khớp |
 | `Symbol` | `string` | Mã chứng khoán |
-| `Price` | `double` | Giá khớp lệnh |
+| `Price` | `decimal` | Giá khớp lệnh |
 | `Quantity` | `int` | Khối lượng khớp |
 | `Side` | `string` | Bên chủ động khớp (`"B"`, `"S"`, hoặc `"U"`) |
 | `TotalVolume` | `int` | Tổng khối lượng khớp từ đầu phiên |
@@ -1004,9 +1149,9 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Type` | `string` | `"quote"` |
 | `TradingTime` | `string` | Thời gian cập nhật giá |
 | `Symbol` | `string` | Mã chứng khoán |
-| `BidPrices` | `List<double>` | Danh sách các mức giá mua tốt nhất |
+| `BidPrices` | `List<decimal>` | Danh sách các mức giá mua tốt nhất |
 | `BidVolumes` | `List<int>` | Khối lượng mua tương ứng |
-| `AskPrices` | `List<double>` | Danh sách các mức giá bán tốt nhất |
+| `AskPrices` | `List<decimal>` | Danh sách các mức giá bán tốt nhất |
 | `AskVolumes` | `List<int>` | Khối lượng bán tương ứng |
 
 #### `OrderStatusMessage` (Streaming)
@@ -1019,7 +1164,7 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | `Symbol` | `string` | Mã chứng khoán |
 | `Side` | `string` | Chiều đặt (`"B"` / `"S"`) |
 | `OrderType` | `string` | Loại lệnh (`"LO"`, v.v.) |
-| `Price` | `double` | Giá đặt lệnh |
+| `Price` | `decimal` | Giá đặt lệnh |
 | `Quantity` | `int` | Khối lượng đặt ban đầu |
 | `OsQuantity` | `int` | Khối lượng chờ khớp còn lại |
 | `FilledQuantity` | `int` | Khối lượng đã khớp |
@@ -1034,9 +1179,9 @@ Các lớp dữ liệu định kiểu (strongly typed models) nằm trong namesp
 | :--- | :--- | :--- |
 | `Type` | `string` | `"clientPortfolioEvent"` |
 | `AccountNo` | `string` | Số tài khoản phát sinh sự kiện |
-| `TotalAsset` | `double` | Tổng tài sản khả dụng |
-| `CashBalance` | `double` | Số dư tiền mặt thay đổi |
-| `StockValue` | `double` | Tổng giá trị danh mục cổ phiếu nắm giữ |
+| `TotalAsset` | `decimal` | Tổng tài sản khả dụng |
+| `CashBalance` | `decimal` | Số dư tiền mặt thay đổi |
+| `StockValue` | `decimal` | Tổng giá trị danh mục cổ phiếu nắm giữ |
 
 #### `HeartbeatMessage` (Streaming)
 | Thuộc tính | Kiểu dữ liệu | Mô tả |
