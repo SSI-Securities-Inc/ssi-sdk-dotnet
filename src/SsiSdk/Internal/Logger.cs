@@ -4,7 +4,8 @@ internal enum LogLevel
 {
     Debug = 0,
     Info = 1,
-    Error = 2,
+    Warn = 2,
+    Error = 3,
 }
 
 internal sealed class Logger
@@ -22,6 +23,7 @@ internal sealed class Logger
         s_globalLevel = level.ToUpperInvariant() switch
         {
             "DEBUG" => LogLevel.Debug,
+            "WARN" or "WARNING" => LogLevel.Warn,
             "ERROR" => LogLevel.Error,
             _ => LogLevel.Info,
         };
@@ -29,6 +31,7 @@ internal sealed class Logger
 
     public void Debug(string message) => Log(LogLevel.Debug, "DEBUG", message);
     public void Info(string message) => Log(LogLevel.Info, "INFO ", message);
+    public void Warn(string message) => Log(LogLevel.Warn, "WARN ", message);
     public void Error(string message) => Log(LogLevel.Error, "ERROR", message);
 
     private void Log(LogLevel level, string tag, string message)
