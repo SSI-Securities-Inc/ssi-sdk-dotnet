@@ -1,4 +1,4 @@
-# API methods - ssi-sdk-dotnet 3.3.0
+# API methods - ssi-sdk-dotnet 3.3.2
 
 Every public method of the package `SSIDeveloper.FastConnect.Sdk` (namespace `SsiSdk`). All I/O methods are
 `async` and take an optional trailing `CancellationToken ct` (not repeated below). There is one async API; the
@@ -35,6 +35,8 @@ Clients: `new AuthClient(config)`, then `new DataClient(auth)`, `new TradingClie
 | `GetSecuritiesSummaryAsync(symbol)` / `GetSecuritiesSummaryHistoricalAsync(symbol, from, to)` | Securities summary (follows `pagesCount`) |
 | `GetSecuritiesSummaryByIndexAsync(index)` / `GetSecuritiesSummaryByIndexHistoricalAsync(index, from, to)` | Summary of an index's constituents |
 | `GetMasterDataAsync()` / `GetMasterDataHistoricalAsync(from, to)` | Ceiling / floor / reference prices (follows `pagesCount`) |
+| `GetCorporateActionsAsync(symbol?, language = "vn")` | Today's corporate actions (dividends, bonus shares, rights issues, ...); fetches every page (pageSize 100), `List<CorporateAction>` with all-string fields |
+| `GetCorporateActionsHistoricalAsync(from, to, symbol?, language = "vn")` | Same for a past range (`YYYY/MM/DD`, at most 5 days); `ValidationException` on a bad date, range, symbol (alphanumeric, max 20) or language (`vn`/`en`) |
 
 ## TradingClient.Account (`AccountService`)
 
@@ -97,9 +99,9 @@ The interval `*` (`Topic.StreamIntervalAll`) is for `trade`/`quote`/`room`/`put`
 pass several filters instead.
 Subscribe requests are split into frames under 4000 bytes.
 
-## SsiSdk.Experimental (trading WebSocket) - EXPERIMENTAL
+## SsiSdk (trading WebSocket)
 
-May change in any release. Needs `Config.PrivateKey` for commands that change state. Not used by `TradingClient` / `StreamClient`.
+Needs `Config.PrivateKey` for commands that change state. Not used by `TradingClient` / `StreamClient`.
 
 | Type / member | Description |
 |---------------|-------------|

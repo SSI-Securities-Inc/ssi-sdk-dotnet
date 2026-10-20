@@ -76,6 +76,12 @@ public static class Constants
     public const string EpDataSecuritiesByBoard = "/api/v3/data/securitiesByBoard";
     public const string EpDataSecuritiesSummary = "/api/v3/data/securitiesSummary";
     public const string EpDataMasterData = "/api/v3/data/masterdata";
+    public const string EpDataCorporateActions = "/api/v3/data/corporateActions";
+
+    // corporateActions: the span of one request is capped at 5 days, pageSize must be one of these, language is vn or en.
+    public const int CorporateActionsMaxDays = 5;
+    public static readonly int[] CorporateActionsPageSizes = [10, 20, 50, 100];
+    public static readonly string[] CorporateActionsLanguages = ["vn", "en"];
 
     public const string EpTradingOrder = "/api/v3/trading/order";
     public const string EpTradingOrderBatch = "/api/v3/trading/order/batch";

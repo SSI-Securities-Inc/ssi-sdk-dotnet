@@ -4,10 +4,10 @@ using SsiSdk.Internal;
 using SsiSdk.Models;
 using SsiSdk.Services;
 
-namespace SsiSdk.Experimental;
+namespace SsiSdk;
 
 /// <summary>
-/// EXPERIMENTAL: order entry and queries over the trading WebSocket. Same inputs and payloads as the REST
+/// Order entry and queries over the trading WebSocket. Same inputs and payloads as the REST
 /// <see cref="TradingService"/>; each call returns the first response frame (the ack).
 /// </summary>
 public sealed class TradingWsService : IAsyncDisposable
@@ -243,7 +243,7 @@ public sealed class TradingWsService : IAsyncDisposable
     }
 }
 
-/// <summary>Factory for the experimental trading WebSocket.</summary>
+/// <summary>Factory for the trading WebSocket.</summary>
 public static class TradingWs
 {
     /// <summary>Copy of the options with the request timeout and user agent taken from the config where the caller left them unset.</summary>

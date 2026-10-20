@@ -11,7 +11,7 @@ This guide provides AI coding assistants (Claude, Gemini, Cursor, Copilot, etc.)
 - Market Data (OHLC 1min-1day, Indexes, Securities Information & Summary)
 - Trading & Portfolio (Order placement/modification/cancellation, batch orders, FCO conditional orders, Account balances, Positions, PPMMR)
 - Realtime Streaming (WebSocket market data & trading events, supervised with auto-reconnect and resubscribe)
-- EXPERIMENTAL trading WebSocket (`SsiSdk.Experimental`, API may change in any release)
+- Trading WebSocket (`SsiSdk.TradingWs`, order/FCO commands and queries over `/ws/v3/trading`)
 
 ### Layering & Structure
 ```
@@ -85,6 +85,8 @@ var stream = new StreamClient(auth);
 | `GetSecuritiesSummaryAsync` | `symbol` | `Task<List<SecuritiesSummary>>` | Summary of stock transactions (`...HistoricalAsync(symbol, from, to)`) |
 | `GetMasterDataAsync` | None | `Task<List<MasterData>>` | Ceiling, floor, ref prices for today |
 | `GetMasterDataHistoricalAsync` | `fromDate, toDate` | `Task<List<MasterData>>` | Same, for a date range |
+| `GetCorporateActionsAsync` | `symbol = null, language = "vn"` | `Task<List<CorporateAction>>` | Today's corporate actions (all pages; all-string fields) |
+| `GetCorporateActionsHistoricalAsync` | `fromDate, toDate, symbol = null, language = "vn"` | `Task<List<CorporateAction>>` | Same, for a date range of at most 5 days |
 
 All prices, volumes and values in models are `decimal`, not `double`.
 
@@ -194,9 +196,9 @@ The stream reconnects and resubscribes by itself. Use `OnConnection`, `IsConnect
 (`OnMarketFlag`, `OnIndexSummary`, `OnOrder`, `OnOrderMatch`, `OnPortfolio`) exist next to `OnData`/`OnTrading`. Handlers are plain `Action<T>`.
 Interval topics accept only `tick`, `1m`, `5m`.
 
-### Experimental trading WebSocket
-`SsiSdk.Experimental.TradingWs.ConnectAsync(auth)` returns a `TradingWsService` for signed order/FCO commands and queries over
-`Config.TradingWsUrl`. It is EXPERIMENTAL and may change in any release; it needs `Config.PrivateKey` for commands that change state.
+### Trading WebSocket
+`SsiSdk.TradingWs.ConnectAsync(auth)` returns a `TradingWsService` for signed order/FCO commands and queries over
+`Config.TradingWsUrl`. It needs `Config.PrivateKey` for commands that change state.
 Prefer `TradingClient` (REST) unless the user asks for the WebSocket.
 
 ---

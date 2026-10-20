@@ -85,7 +85,7 @@ public class WebSocketException : SsiException
 }
 
 /// <summary>
-/// EXPERIMENTAL trading WebSocket: the server refused a command or the socket itself. The message never carries the
+/// Trading WebSocket: the server refused a command or the socket itself. The message never carries the
 /// signed params.
 /// </summary>
 public sealed class TradingWsError : WebSocketException

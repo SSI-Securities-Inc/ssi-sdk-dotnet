@@ -3,9 +3,9 @@ using System.Text.Json;
 using SsiSdk.Internal;
 using SsiSdk.Transport;
 
-namespace SsiSdk.Experimental;
+namespace SsiSdk;
 
-/// <summary>Knobs of the experimental trading WebSocket client.</summary>
+/// <summary>Knobs of the trading WebSocket client.</summary>
 public sealed class TradingWsOptions
 {
     /// <summary>Milliseconds a command waits for its first response frame. Null takes <c>Config.TimeoutMs</c> (10000 when unset).</summary>
@@ -33,12 +33,12 @@ public sealed class TradingWsOptions
 }
 
 /// <summary>
-/// EXPERIMENTAL client for the trading WebSocket (<c>/ws/v3/trading</c>). The API may change in any release.
+/// Client for the trading WebSocket (<c>/ws/v3/trading</c>).
 /// It does not reconnect: after a drop, create a new one.
 /// </summary>
 public sealed class TradingWsClient : IAsyncDisposable
 {
-    private static readonly Logger Log = new("ssi_sdk.experimental.trading_ws");
+    private static readonly Logger Log = new("ssi_sdk.trading_ws");
 
     private readonly Config _config;
     private readonly Func<CancellationToken, Task<string>> _tokenProvider;

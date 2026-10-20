@@ -9,6 +9,28 @@ Renamed members keep their old name as an `[Obsolete]` alias (except the 3.3.0 m
 3.3.0 brings the .NET SDK level with the Python SDK 3.3.0. Python's sync/async pairs collapse into the single async API
 (`Task` + `CancellationToken`) .NET already had; numbers that were `double` are now `decimal`.
 
+## 3.3.2 - 2026-10-20
+
+### Added
+- Corporate actions (`GET /api/v3/data/corporateActions`) as two `MarketData` methods: `GetCorporateActionsAsync(symbol = null, language = "vn")` for today and
+  `GetCorporateActionsHistoricalAsync(fromDate, toDate, symbol = null, language = "vn")` for a past range (the server allows at most 5 days per request).
+  Both fetch every page and return `List<CorporateAction>` (`Symbol`, `EventTitle`, `ExrightDate`, `RecordDate`, `IssueDate`, `Exchange`, `Ratio`, all
+  strings as the server sends them). Checked on the client before any call: date format, `from <= to`, 5-day span, symbol, language.
+  Written from the official API doc; not yet run against the live server.
+
+### Changed
+- **BREAKING:** Trading WebSocket is no longer experimental. `TradingWs`, `TradingWsOptions`, `TradingWsClient`, `TradingWsService` and
+  `TradingWsResponse` moved from the `SsiSdk.Experimental` namespace to the root `SsiSdk` namespace (next to `AuthClient`, `Config`
+  and `TradingWsError`). The old namespace was removed without an alias or an `[Obsolete]` forwarder, so code that still says
+  `using SsiSdk.Experimental;` no longer compiles. Names, signatures, defaults, signing and timeouts are unchanged, and `TradingClient` /
+  `StreamClient` still do not open it for you. The log source is now `ssi_sdk.trading_ws` (was `ssi_sdk.experimental.trading_ws`).
+  Migration:
+  ```csharp
+  // before: using SsiSdk.Experimental;
+  using SsiSdk;
+  await using TradingWsService ws = await TradingWs.ConnectAsync(auth);
+  ```
+
 ## 3.3.0 - 2026-10-08
 
 ### Security

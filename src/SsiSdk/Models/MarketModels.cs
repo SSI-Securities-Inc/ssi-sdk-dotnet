@@ -274,3 +274,32 @@ public sealed class MasterData
 
     internal static List<MasterData> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
 }
+
+/// <summary>
+/// One corporate action (dividend, bonus shares, rights issue, ...) of a security. Every field is the text the server
+/// sends: dates stay <c>YYYY/MM/DD</c> text and <see cref="Ratio"/> is not parsed, because its meaning depends on the
+/// event type. A field the server leaves blank or omits is <c>""</c>.
+/// </summary>
+public sealed class CorporateAction
+{
+    public string Symbol { get; set; } = string.Empty;
+    public string EventTitle { get; set; } = string.Empty;
+    public string ExrightDate { get; set; } = string.Empty;
+    public string RecordDate { get; set; } = string.Empty;
+    public string IssueDate { get; set; } = string.Empty;
+    public string Exchange { get; set; } = string.Empty;
+    public string Ratio { get; set; } = string.Empty;
+
+    internal static CorporateAction FromJson(JsonElement el) => new()
+    {
+        Symbol = MarketParse.Str(el, "symbol"),
+        EventTitle = MarketParse.Str(el, "eventTitle"),
+        ExrightDate = MarketParse.Str(el, "exrightDate"),
+        RecordDate = MarketParse.Str(el, "recordDate"),
+        IssueDate = MarketParse.Str(el, "issueDate"),
+        Exchange = MarketParse.Str(el, "exchange"),
+        Ratio = MarketParse.Str(el, "ratio"),
+    };
+
+    internal static List<CorporateAction> FromRows(IEnumerable<JsonElement> rows) => rows.Select(FromJson).ToList();
+}
