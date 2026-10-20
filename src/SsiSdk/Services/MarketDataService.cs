@@ -138,6 +138,37 @@ public sealed partial class MarketDataService
         ];
     }
 
+    /// <summary>Validates the corporate actions query (limits as the server documents them) and builds it.</summary>
+    internal static List<KeyValuePair<string, string>> BuildCorporateActionsParams(
+        string fromDate, string toDate, string? symbol, string language, int page, int size)
+    {
+        Validate.RequireDateRange(fromDate, toDate, maxDays: Constants.CorporateActionsMaxDays);
+        if (symbol is not null)
+        {
+            Validate.RequireSymbol(symbol);
+            if (symbol.Length > 20)
+                throw new ValidationException($"symbol must be at most 20 characters, got {symbol.Length}");
+        }
+        var lang = language?.Trim().ToLowerInvariant();
+        if (lang is null || !Constants.CorporateActionsLanguages.Contains(lang))
+            throw new ValidationException(
+                $"language must be one of {string.Join(", ", Constants.CorporateActionsLanguages)}, got '{language}'");
+        Validate.RequirePositive(page, "page");
+        if (!Constants.CorporateActionsPageSizes.Contains(size))
+            throw new ValidationException(
+                $"size must be one of {string.Join(", ", Constants.CorporateActionsPageSizes)}, got {size}");
+        var p = new List<KeyValuePair<string, string>>
+        {
+            new("from", fromDate),
+            new("to", toDate),
+            new("language", lang),
+            new("pageIndex", page.ToString(CultureInfo.InvariantCulture)),
+            new("pageSize", size.ToString(CultureInfo.InvariantCulture)),
+        };
+        if (symbol is not null) p.Add(new("symbol", symbol));
+        return p;
+    }
+
     // -- OHLC --------------------------------------------------------------
 
     private static Task<List<OhlcData>> NotImplementedDownload() =>
@@ -413,4 +444,35 @@ public sealed partial class MarketDataService
         Validate.RequireNonEmpty(toDate, "toDate");
         return GetMasterDataCoreAsync(fromDate, toDate, ct);
     }
+
+    // -- Corporate actions -------------------------------------------------------
+
+    private async Task<List<CorporateAction>> GetCorporateActionsCoreAsync(
+        string fromDate, string toDate, string? symbol, string language, CancellationToken ct)
+    {
+        var page = Constants.DefaultPage;
+        var size = Constants.CorporateActionsPageSizes.Max();
+        var items = new List<CorporateAction>();
+        while (true)
+        {
+            var p = BuildCorporateActionsParams(fromDate, toDate, symbol, language, page, size);
+            var data = await _rest.GetAsync(Constants.EpDataCorporateActions, p, ct: ct).ConfigureAwait(false);
+            items.AddRange(CorporateAction.FromRows(Rows(data, "corporate actions")));
+            if (page >= PagesCount(data)) break;
+            page++;
+        }
+        return items;
+    }
+
+    /// <summary>Today's corporate actions (dividends, bonus shares, rights issues, ...); fetches every page. <paramref name="language"/> is "vn" (default) or "en".</summary>
+    public Task<List<CorporateAction>> GetCorporateActionsAsync(string? symbol = null, string language = "vn", CancellationToken ct = default)
+    {
+        var today = IdGenerator.TodayDateStr();
+        return GetCorporateActionsCoreAsync(today, today, symbol, language, ct);
+    }
+
+    /// <summary>Corporate actions in a date range (YYYY/MM/DD, at most 5 days); fetches every page.</summary>
+    public Task<List<CorporateAction>> GetCorporateActionsHistoricalAsync(
+        string fromDate, string toDate, string? symbol = null, string language = "vn", CancellationToken ct = default) =>
+        GetCorporateActionsCoreAsync(fromDate, toDate, symbol, language, ct);
 }

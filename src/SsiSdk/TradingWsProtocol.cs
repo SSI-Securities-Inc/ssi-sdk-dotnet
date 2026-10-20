@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using SsiSdk.Internal;
 
-namespace SsiSdk.Experimental;
+namespace SsiSdk;
 
 /// <summary>A success frame: <c>{"id","method","status":200,"result","rateLimit",...}</c>.</summary>
 public sealed class TradingWsResponse

@@ -23,7 +23,7 @@
 - [6. Streaming realtime](#6-streaming-realtime)
 - [7. Xử lý lỗi](#7-xử-lý-lỗi)
 - [8. Cấu hình nâng cao](#8-cấu-hình-nâng-cao)
-- [9. Trading WebSocket (Experimental)](#9-trading-websocket-experimental)
+- [9. Trading WebSocket](#9-trading-websocket)
 - [Thay đổi lớn ở 3.3.0](#thay-đổi-lớn-ở-330)
 - [API Reference](#api-reference)
   - [Enums / Constants](#enums--constants)
@@ -78,7 +78,7 @@ var config = new Config
 | `LogLevel` | `string` | `"INFO"` | Mức độ log (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
 | `Proxy` | `string?` | `null` | Cấu hình proxy nếu cần đi qua proxy |
 | `TradingApiDomain` | `string` | `"https://api.ssi.com.vn"` | Host (hoặc URL đầy đủ) của REST API giao dịch và tài khoản. Để trống = mặc định. Đọc URL đã chuẩn hoá qua `TradingApiUrl` |
-| `TradingWsDomain` | `string` | `"wss://api.ssi.com.vn/ws/v3/trading"` | Host (hoặc URL) của WebSocket giao dịch (Experimental). Đọc URL đã chuẩn hoá qua `TradingWsUrl` |
+| `TradingWsDomain` | `string` | `"wss://api.ssi.com.vn/ws/v3/trading"` | Host (hoặc URL) của WebSocket giao dịch. Đọc URL đã chuẩn hoá qua `TradingWsUrl` |
 | `UserAgent` | `string?` | `null` | User-Agent gửi lên REST và WebSocket. Null/rỗng = User-Agent mặc định của SDK |
 | `AutoReconnect` | `bool` | `true` | Tự kết nối lại streaming khi rớt |
 | `OtpPollIntervalMs` | `int` | `5000` | Mili-giây giữa các lần poll Smart OTP của `EnsureAuthenticatedAsync(transactionId: ...)` |
@@ -326,6 +326,8 @@ Truy cập qua `data.MarketData` (client `DataClient`).
 | | `GetSecuritiesSummaryHistoricalAsync(symbol, fromDate, toDate)` | Tổng hợp giao dịch mã lịch sử |
 | | `GetSecuritiesSummaryByIndexAsync(index)` | Tổng hợp mã theo chỉ số |
 | | `GetSecuritiesSummaryByIndexHistoricalAsync(index, fromDate, toDate)` | Tổng hợp mã theo chỉ số lịch sử |
+| **Corporate Actions** | `GetCorporateActionsAsync(symbol = null, language = "vn")` | Sự kiện quyền (cổ tức, thưởng, phát hành...) hôm nay |
+| | `GetCorporateActionsHistoricalAsync(fromDate, toDate, symbol = null, language = "vn")` | Sự kiện quyền trong khoảng ngày (tối đa 5 ngày) |
 
 ### 3.1. Dữ liệu OHLC (Nến giao dịch)
 
@@ -397,6 +399,32 @@ foreach (var item in masterData)
     Console.WriteLine($"{item.Board} {item.Symbol}: trần={item.Ceiling} sàn={item.Floor} TC={item.RefPrice}");
 }
 ```
+
+### 3.6. Corporate Actions (sự kiện quyền)
+
+`GET /api/v3/data/corporateActions`. SDK tự gọi hết các trang (pageSize 100). Hai method tách theo thời điểm:
+
+```csharp
+// Hôm nay (mọi mã, hoặc 1 mã)
+List<CorporateAction> today = await data.MarketData.GetCorporateActionsAsync();
+List<CorporateAction> gda = await data.MarketData.GetCorporateActionsAsync("GDA", "en");
+
+// Quá khứ: khoảng ngày tối đa 5 ngày
+List<CorporateAction> past = await data.MarketData.GetCorporateActionsHistoricalAsync(
+    "2026/10/08", "2026/10/12",
+    symbol: null,      // null = tất cả mã
+    language: "vn");   // "vn" (mặc định) hoặc "en"
+
+foreach (var e in past)
+{
+    Console.WriteLine($"{e.Symbol} {e.EventTitle} {e.ExrightDate} {e.RecordDate} {e.IssueDate} {e.Exchange} {e.Ratio}");
+}
+```
+
+**Trả về:** `List<CorporateAction>` — `Symbol`, `EventTitle`, `ExrightDate`, `RecordDate`, `IssueDate`, `Exchange`, `Ratio`.
+Tất cả là `string` đúng như server trả (ngày `YYYY/MM/DD`, `Ratio` không ép kiểu); sự kiện mới công bố có thể có `ExrightDate` / `Ratio` rỗng `""`.
+SDK kiểm tra trước khi gọi: ngày đúng `YYYY/MM/DD`, `from <= to`, khoảng tối đa 5 ngày, `symbol` chữ-số tối đa 20 ký tự, `language` là `vn`/`en`
+(sai thì `ValidationException`, không gọi mạng).
 
 ---
 
@@ -795,12 +823,12 @@ var config = new Config
 
 ---
 
-## 9. Trading WebSocket (Experimental)
+## 9. Trading WebSocket
 
-Namespace `SsiSdk.Experimental`. **Thử nghiệm: API có thể thay đổi ở bất kỳ bản phát hành nào.** Gửi lệnh/FCO đã ký và truy vấn qua `Config.TradingWsUrl`; `TradingClient` (REST) và `StreamClient` không dùng nó. Mặc định hãy dùng `TradingClient`.
+Namespace `SsiSdk`. Gửi lệnh/FCO đã ký và truy vấn qua `Config.TradingWsUrl`; `TradingClient` (REST) và `StreamClient` không dùng nó. Mặc định hãy dùng `TradingClient`.
 
 ```csharp
-using SsiSdk.Experimental;
+using SsiSdk;
 
 await using TradingWsService ws = await TradingWs.ConnectAsync(auth);
 
